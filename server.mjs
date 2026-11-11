@@ -18,8 +18,8 @@ const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
 async function body(req){return JSON.parse((await raw(req)).toString()||'{}');}
 http.createServer(async(req,res)=>{
- res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
- res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+ res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+ res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' https://tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'none'");
  if(![`127.0.0.1:${port}`,`localhost:${port}`].includes(req.headers.host))return send(res,403,{error:'不允許的 Host'});
  const url=new URL(req.url,base);
  if(req.method==='GET'&&url.pathname.startsWith('/auth/')){
@@ -40,7 +40,7 @@ http.createServer(async(req,res)=>{
   try{
    const b=isFit?{}:await body(req);let s=store.get();
    if(isFit){
-    const buffer=await raw(req,20*1024*1024);const items=parseFit(buffer,s.context.timezone);const imported=importActivities(s,items);await mkdir(join(dataDir,'uploads'),{recursive:true});if(imported.added)await writeFile(join(dataDir,'uploads',items[0].fingerprint.split(':')[0]+'.fit'),buffer,{mode:0o600});await store.save(s);return send(res,200,{...view(s),imported});
+    const buffer=await raw(req,20*1024*1024);const items=parseFit(buffer,s.context.timezone);const activityIds=[];const imported=importActivities(s,items,activityIds);await mkdir(join(dataDir,'uploads'),{recursive:true});if(imported.added)await writeFile(join(dataDir,'uploads',items[0].fingerprint.split(':')[0]+'.fit'),buffer,{mode:0o600});await store.save(s);return send(res,200,{...view(s),imported,activityIds});
    }else if(req.url==='/api/connections'){
     const mode=b.mode;if(!['mock','byok','managed'].includes(mode))throw Error('分析模式不正確');if(mode==='managed')throw Error('AIAC 付費代管尚未開通，不會使用開發者共享 Key');
     const dailyLimit=Number(b.dailyLimit),maxOutputTokens=Number(b.maxOutputTokens);
@@ -113,6 +113,6 @@ http.createServer(async(req,res)=>{
    await store.save(s);send(res,200,view(s));
   }catch(e){send(res,400,{error:e.name==='TimeoutError'?'LLM 回應逾時，未修改課表':e.message});}finally{busy=false;}return;
  }
- const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml']};
+ const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/route-map.js':['route-map.js','text/javascript'],'/vendor/leaflet.js':['../node_modules/leaflet/dist/leaflet.js','text/javascript'],'/vendor/leaflet.css':['../node_modules/leaflet/dist/leaflet.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml']};
  if(req.method==='GET'&&files[req.url]){const [file,type]=files[req.url];res.writeHead(200,{'Content-Type':type+'; charset=utf-8'});res.end(await readFile(new URL('./public/'+file,import.meta.url)));}else send(res,404,{error:'Not found'});
 }).listen(port,'127.0.0.1',()=>console.log(`AIAC running at http://127.0.0.1:${port} · ${store.get().connections.llm.mode} · local data only`));

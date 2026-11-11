@@ -37,6 +37,6 @@ export function createDemoService(storage){
    else throw Error('此線上試用版僅提供瀏覽器內的 Mock 與 FIT 功能。LLM Key、Strava／MCP 授權請使用 Repository 的本機完整版本。');
    return save(s);
   },
-  async importFit(file){if(file.size>20*1024*1024)throw Error('FIT 最大 20 MB');const bytes=new Uint8Array(await file.arrayBuffer());const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');const items=decodeFitBytes(bytes,state.context.timezone,digest);const s=structuredClone(state),imported=importActivities(s,items);return {...save(s),imported};}
+  async importFit(file){if(file.size>20*1024*1024)throw Error('FIT 最大 20 MB');const bytes=new Uint8Array(await file.arrayBuffer());const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');const items=decodeFitBytes(bytes,state.context.timezone,digest);const s=structuredClone(state),activityIds=[];const imported=importActivities(s,items,activityIds);return {...save(s),imported,activityIds};}
  };
 }

@@ -4,9 +4,47 @@ import {Encoder,Profile} from '@garmin/fitsdk';
 import {normalizeActivity,parseFit,importActivities,comparison} from '../src/activities.mjs';
 import {initialState} from '../src/store.mjs';
 import {budget} from '../src/coach.mjs';
+import {activityLapFacts} from '../src/activity-core.mjs';
+
+test('FIT lap facts calculate pace and preserve missing measurements', () => {
+ const encoder = new Encoder();
+ const start = new Date('2026-11-11T07:00:00Z');
+ const split = new Date(+start + 299600);
+ const end = new Date(+start + 360000);
+ encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:'development',product:1,timeCreated:start});
+ encoder.onMesg(Profile.MesgNum.LAP,{startTime:start,timestamp:split,totalTimerTime:299.6,totalDistance:1000,avgHeartRate:145});
+ encoder.onMesg(Profile.MesgNum.LAP,{startTime:split,timestamp:end,totalTimerTime:60.4});
+ encoder.onMesg(Profile.MesgNum.SESSION,{startTime:start,timestamp:end,sport:'running',totalTimerTime:360});
+ const [activity] = parseFit(Buffer.from(encoder.close()), 'Asia/Taipei');
+ const [first, second] = activityLapFacts(activity);
+ assert.equal(first.paceSecondsPerKm, 300);
+ assert.equal(first.avgHeartRate, 145);
+ assert.equal(second.lap, 2);
+ assert.equal(second.paceSecondsPerKm, null);
+ assert.equal(second.avgHeartRate, null);
+ assert.deepEqual(activityLapFacts({}), []);
+});
 export function exampleFit(){const e=new Encoder();const start=new Date('2026-11-11T23:30:00Z');e.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:'development',product:1,timeCreated:start});e.onMesg(Profile.MesgNum.SESSION,{timestamp:new Date(+start+2400000),startTime:start,sport:'running',totalTimerTime:2400,totalElapsedTime:2500,totalDistance:6000,avgHeartRate:140});return Buffer.from(e.close());}
 test('official SDK decodes real FIT bytes, units and timezone',()=>{const [a]=parseFit(exampleFit(),'Asia/Taipei');assert.equal(a.durationSeconds,2400);assert.equal(a.distanceMeters,6000);assert.equal(a.avgHeartRate,140);assert.equal(a.date,'2026-11-12');assert.equal(a.trainingType,'Unknown');});
 test('bad FIT CRC is rejected without partial import',()=>{const b=exampleFit();b[20]^=255;assert.throws(()=>parseFit(b,'Asia/Taipei'),/CRC/);});
+test('reimporting an older FIT activity adds its GPS route without duplicating it', () => {
+ const encoder = new Encoder();
+ const start = new Date('2026-11-11T07:00:00Z');
+ const position = degrees => Math.round(degrees * 2 ** 31 / 180);
+ encoder.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:'development',product:1,timeCreated:start});
+ encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:start,positionLat:position(25),positionLong:position(121)});
+ encoder.onMesg(Profile.MesgNum.RECORD,{timestamp:new Date(+start+60000),positionLat:position(25.01),positionLong:position(121.01)});
+ encoder.onMesg(Profile.MesgNum.SESSION,{startTime:start,timestamp:new Date(+start+60000),sport:'running',totalTimerTime:60});
+ const [activity] = parseFit(Buffer.from(encoder.close()), 'Asia/Taipei');
+ const state = initialState();
+ const legacy = {...activity};
+ delete legacy.route;
+ state.activities.push(legacy);
+ const activityIds = [];
+ assert.deepEqual(importActivities(state, [activity], activityIds), {added:0,duplicates:1});
+ assert.deepEqual(activityIds, [legacy.id]);
+ assert.deepEqual(state.activities[0].route, [[25,121],[25.01,121.01]]);
+});
 test('duplicate FIT and cross-source activity count once',()=>{const s=initialState(),a=parseFit(exampleFit(),'Asia/Taipei')[0];assert.deepEqual(importActivities(s,[a]),{added:1,duplicates:0});assert.deepEqual(importActivities(s,parseFit(exampleFit(),'Asia/Taipei')),{added:0,duplicates:1});const remote=normalizeActivity({...a,sourceId:'strava-1'},'strava','Asia/Taipei');assert.deepEqual(importActivities(s,[remote]),{added:0,duplicates:1});assert.equal(s.activities.length,1);assert.equal(s.activities[0].sources.length,2);});
 test('completion distinguishes actual time from workout stimulus',()=>{const s=initialState(),p=s.plan[1];const a=normalizeActivity({startedAt:p.id+'T07:00:00+08:00',durationSeconds:3600,distanceMeters:10000,trainingType:'Zone2',planId:p.id},'manual');s.activities.push(a);const c=comparison(s)[1];assert.equal(c.ratio,60/45);assert.equal(c.status,'時間達標');assert.equal(c.stimulus,'訓練目的有差異');assert.equal(budget(s).completed,60);assert.equal(s.plan[1].minutes,45);});
 test('legacy checkbox never fabricates actual completion; missing distance stays null',()=>{const s=initialState();s.plan[0].completed=true;assert.equal(budget(s).completed,0);assert.equal(comparison(s)[0].actualMinutes,0);const a=normalizeActivity({startedAt:s.plan[0].id+'T07:00:00+08:00',durationSeconds:1800});assert.equal(a.distanceMeters,null);assert.equal(a.avgHeartRate,null);});

@@ -1,8 +1,31 @@
+import {clearRouteMap, showRouteMap} from './route-map.js';
+
 let state;let pending=false;
+let previewActivityId;
 document.addEventListener('click',e=>{const dialog=document.querySelector('#creator-dialog');if(e.target.closest('[data-creator-open]'))dialog.showModal();if(e.target.closest('[data-creator-close]')||e.target===dialog)dialog.close();});
 let mcpTools=[],mcpOutput=null;
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const types=['Zone2','Interval','Tempo','Recovery','Rest','Long Run','Indoor'];
+function formatPace(seconds) {
+ if (!Number.isFinite(seconds)) return '—';
+ const rounded = Math.round(seconds);
+ return Math.floor(rounded / 60) + ':' + String(rounded % 60).padStart(2, '0');
+}
+function renderLapFacts(laps) {
+ if (!laps.length) return '<p class="small">此活動沒有分圈資料。</p>';
+ const rows = laps.map(lap => `<tr>
+  <th scope="row">${lap.lap}</th>
+  <td>${lap.durationSeconds === null ? '—' : Math.round(lap.durationSeconds) + ' 秒'}</td>
+  <td>${lap.distanceMeters === null ? '—' : (lap.distanceMeters / 1000).toFixed(2) + ' km'}</td>
+  <td>${formatPace(lap.paceSecondsPerKm)}</td>
+  <td>${lap.avgHeartRate ?? '—'}</td>
+ </tr>`).join('');
+ return `<details><summary>查看 FIT 分圈（${laps.length} 圈）</summary>
+  <div class="lap-table"><table aria-label="FIT 分圈">
+   <thead><tr><th scope="col">圈</th><th scope="col">時間</th><th scope="col">距離</th><th scope="col">配速 / km</th><th scope="col">平均心率 / bpm</th></tr></thead>
+   <tbody>${rows}</tbody>
+  </table></div></details>`;
+}
 function notice(text){$('#notice').textContent=text;}
 async function api(path,body){if(globalThis.AIAC_DEMO)return globalThis.AIAC_DEMO.request(path,body);const res=await fetch('/api/'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await res.json();if(!res.ok)throw Error(data.error||'無法連接伺服器');return data;}
 async function action(fn){if(pending)return;pending=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();}catch(e){notice(e.message);}finally{pending=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);globalThis.AIAC_DEMO?.decorate();}}
@@ -30,18 +53,63 @@ $('#plan-form').addEventListener('submit',e=>{e.preventDefault();action(async()=
 $('#memory-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('memory',formValue('#memory-form'));$('#memory-form').reset();render();notice('已保存你確認的長期記憶。');});});
 $('#reset').addEventListener('click',()=>{const confirm=window.prompt('刪除本地個人設定、對話、記憶及日誌，並還原示範課表。輸入 DELETE 確認：');if(confirm==='DELETE')action(async()=>{state=await api('reset',{confirm});render();notice('個人資料已刪除，已還原初始示範狀態。');});});
 function renderConnections(){
+ for(const container of $('#activities').querySelectorAll('[data-activity-map]'))clearRouteMap(container);
+ if(previewActivityId&&!state.activities.some(a=>a.id===previewActivityId)){
+  const preview=$('#fit-route-preview');clearRouteMap(preview);preview.hidden=true;previewActivityId=undefined;
+ }
  const c=state.connections;fill('#llm-form',c.llm);$('#llm-form').elements.apiKey.value='';$('#llm-form').elements.consent.checked=c.llm.mode==='byok';
  $('#key-status').textContent=c.llm.hasKey?'已儲存 Key，不會回傳至瀏覽器；留白保留。':'尚未設定使用者 Key。';
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:state.context.timezone}).format(new Date());const usage=c.usage.filter(u=>u.day===today),tokens=usage.reduce((n,u)=>n+(u.tokens?.total_tokens||0),0);$('#usage').innerHTML=`<p class="tag">今日 ${usage.length} / ${c.llm.dailyLimit} 次 · 已回報 ${tokens} tokens</p><p class="small">${usage.filter(u=>u.status==='failed').length} 次失敗；實際費用以供應商帳單為準。</p>`;
  fill('#mcp-form',c.mcp);$('#mcp-form').elements.bearer.value='';$('#mcp-status').textContent=`狀態：${c.mcp.status} ${c.mcp.hasBearer?'· 已保存 Bearer':''}。移除本機授權不等於撤銷服務商授權，請到服務商帳戶撤銷。`;
  $('#strava-status').innerHTML=`<p class="tag">${c.strava.connected?'已連接 Strava':c.strava.configured?'OAuth App 已設定 · 等待授權':'OAuth App 未設定'}</p><p class="small">${c.strava.lastSync?'最近同步：'+esc(c.strava.lastSync):'尚未同步。'} 匯入的 Strava 資料可做本地對照；第三方 AI 分析受 Strava 資料政策限制。</p>`;
- $('#activities').innerHTML=state.activities.length?state.activities.slice().reverse().map(a=>{const summary=state.summaries[a.id];return `<article class="activity-entry"><div class="tag">${esc(a.sources.map(s=>s.source).join(' / '))} · ${esc(a.date)} · ${esc(a.timezone)}</div><h2>${esc(a.name)}</h2><p>${esc(summary.facts)}</p><p class="small">${summary.pace===null?'配速未知':'平均配速 '+Math.floor(summary.pace/60)+':'+String(Math.round(summary.pace%60)).padStart(2,'0')+' / km'} · ${esc(summary.uncertainties.join(' · '))}</p><div class="fields"><label>對應課表<select data-link-date="${esc(a.id)}"><option value="">尚未對應（不計課表完成度）</option>${state.plan.map(p=>`<option value="${p.id}" ${a.planId===p.id?'selected':''}>${p.id} · ${p.type} ${p.minutes} 分</option>`).join('')}</select></label><label>實際訓練目的 · 使用者確認<select data-link-type="${esc(a.id)}">${['Unknown',...types].map(t=>`<option ${a.trainingType===t?'selected':''}>${t}</option>`).join('')}</select></label></div><div class="actions"><button class="secondary" data-link-save="${esc(a.id)}">儲存對應與目的</button><button class="secondary" data-analyze="${esc(a.id)}">請教練分析（依目前 LLM 設定）</button><button class="secondary" data-delete-activity="${esc(a.id)}">移除活動</button></div><p class="small">${esc(summary.note)}</p></article>`;}).join(''):'<p class="muted">還沒有實際活動。拖入 FIT 或在週計畫手動登錄結果。</p>';
+ $('#activities').innerHTML=state.activities.length?state.activities.slice().reverse().map(a=>{const summary=state.summaries[a.id];return `<article class="activity-entry"><div class="tag">${esc(a.sources.map(s=>s.source).join(' / '))} · ${esc(a.date)} · ${esc(a.timezone)}</div><h2>${esc(a.name)}</h2><p>${esc(summary.facts)}</p><p class="small">${summary.pace===null?'配速未知':'平均配速 '+formatPace(summary.pace)+' / km'} · ${esc(summary.uncertainties.join(' · '))}</p>${a.sources.some(s=>s.source==='fit')?renderLapFacts(summary.laps):''}${a.route?.length>=2?`<details class="activity-route" data-route-activity="${esc(a.id)}"><summary>查看 GPS 軌跡</summary><div data-activity-map></div></details>`:a.sources.some(s=>s.source==='fit')?'<p class="small">如有原始 FIT，可重新匯入以補上 GPS 軌跡。</p>':''}<div class="fields"><label>對應課表<select data-link-date="${esc(a.id)}"><option value="">尚未對應（不計課表完成度）</option>${state.plan.map(p=>`<option value="${p.id}" ${a.planId===p.id?'selected':''}>${p.id} · ${p.type} ${p.minutes} 分</option>`).join('')}</select></label><label>實際訓練目的 · 使用者確認<select data-link-type="${esc(a.id)}">${['Unknown',...types].map(t=>`<option ${a.trainingType===t?'selected':''}>${t}</option>`).join('')}</select></label></div><div class="actions"><button class="secondary" data-link-save="${esc(a.id)}">儲存對應與目的</button><button class="secondary" data-analyze="${esc(a.id)}">請教練分析（依目前 LLM 設定）</button><button class="secondary" data-delete-activity="${esc(a.id)}">移除活動</button></div><p class="small">${esc(summary.note)}</p></article>`;}).join(''):'<p class="muted">還沒有實際活動。拖入 FIT 或在週計畫手動登錄結果。</p>';
  $('#actual-form').elements.planId.innerHTML=state.plan.map(p=>`<option value="${p.id}" ${p.id===state.context.date?'selected':''}>${p.id} · ${p.type}</option>`).join('');
  globalThis.AIAC_DEMO?.decorate();
 }
 const manualCard=document.createElement('article');manualCard.className='card';manualCard.innerHTML=`<h2>登錄實際訓練結果</h2><p class="small">沒有連接裝置也能記錄結果。這會新增實際活動，保留教練原預計課程。每次提交新增一筆，可在資料頁移除誤登活動。</p><form id="actual-form"><div class="fields"><label>對應課表<select name="planId"></select></label><label>實際訓練目的<select name="trainingType"><option>Unknown</option>${types.map(t=>`<option>${t}</option>`).join('')}</select></label><label>開始時間（依今日情境時區）<input name="time" type="time" value="07:00" required></label><label>實際分鐘<input name="minutes" type="number" min="0" max="1440" step="0.1" required></label><label>距離 km（選填）<input name="distanceKm" type="number" min="0" max="1000" step="0.01"></label><label>平均心率 bpm（選填）<input name="avgHeartRate" type="number" min="1" max="250"></label></div><label>實際感受／備註<textarea name="notes" rows="2"></textarea></label><button class="primary">保存實際結果</button> <button type="button" class="secondary" data-tab="connections">FIT 匯入 / 管理活動 →</button></form>`;$('#plan').append(manualCard);
-async function uploadFit(file){if(!file)return;if(!file.name.toLowerCase().endsWith('.fit')||file.size>20*1024*1024)throw Error('請提供不超過 20 MB 的 FIT 檔');notice('正在本地解析 FIT；不使用 LLM…');if(globalThis.AIAC_DEMO){state=await globalThis.AIAC_DEMO.importFit(file);render();notice(`已在瀏覽器匯入 ${state.imported.added} 筆，重複 ${state.imported.duplicates} 筆。請確認課表對應。`);return;}const r=await fetch('/api/import-fit',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const data=await r.json();if(!r.ok)throw Error(data.error);state=data;render();notice(`已匯入 ${data.imported.added} 筆，略過 ${data.imported.duplicates} 筆重複活動。請於下方確認對應課表。`);}
-$('#fit-drop').addEventListener('click',()=>$('#fit-file').click());$('#fit-drop').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#fit-file').click();}});$('#fit-drop').addEventListener('dragover',e=>{e.preventDefault();$('#fit-drop').classList.add('dragging');});$('#fit-drop').addEventListener('dragleave',()=>$('#fit-drop').classList.remove('dragging'));$('#fit-drop').addEventListener('drop',e=>{e.preventDefault();$('#fit-drop').classList.remove('dragging');action(()=>uploadFit(e.dataTransfer.files[0]));});$('#fit-file').addEventListener('change',()=>action(()=>uploadFit($('#fit-file').files[0])));
+function fitFeedback(text,kind,showActivity=false){$('#fit-feedback').hidden=false;$('#fit-feedback').dataset.status=kind;$('#fit-status').textContent=text;$('#fit-view').hidden=!showActivity;}
+async function uploadFit(file){
+ if(!file)return;
+ const preview=$('#fit-route-preview');clearRouteMap(preview);preview.hidden=true;previewActivityId=undefined;
+ fitFeedback(`正在讀取 ${file.name}…`,'working');$('#fit-drop').setAttribute('aria-busy','true');
+ try{
+  if(!state)throw Error('試用版尚未完成載入，請重新整理後再試。');
+  if(!file.name.toLowerCase().endsWith('.fit'))throw Error('請選擇活動的 .fit 檔；如果是 ZIP，請先解壓縮。');
+  if(file.size===0||file.size>20*1024*1024)throw Error('檔案必須有內容且不超過 20 MB。');
+  const previousIds=new Set(state.activities.map(a=>a.id));
+  if(globalThis.AIAC_DEMO)state=await globalThis.AIAC_DEMO.importFit(file);
+  else{const r=await fetch('/api/import-fit',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const data=await r.json();if(!r.ok)throw Error(data.error);state=data;}
+  render();
+  const {added,duplicates}=state.imported;
+  const importedActivities=state.activityIds.map(id=>state.activities.find(a=>a.id===id));
+  const first=importedActivities.find(a=>a&&!previousIds.has(a.id));
+  const result=added?`已匯入 ${added} 筆${duplicates?`，略過 ${duplicates} 筆重複活動`:''}。${first?`\n${first.date} · ${state.summaries[first.id].facts}`:''}\n選擇對應課程後，才會計入課表完成度。`:`這份檔案的 ${duplicates} 筆活動已存在，沒有重複計算。`;
+  const mappedActivity=importedActivities.find(a=>a?.route?.length>=2);
+  fitFeedback(result+(mappedActivity?'':'\n這份活動沒有可繪製的 GPS 軌跡。'),'success',true);
+  if(mappedActivity){
+   previewActivityId=mappedActivity.id;
+   preview.hidden=false;
+   showRouteMap(preview,mappedActivity.route);
+  }
+ }catch(e){fitFeedback(`無法匯入 ${file.name}\n${e.message}`,'error');}
+ finally{$('#fit-drop').removeAttribute('aria-busy');}
+}
+function chooseFit(){if(!pending)$('#fit-file').click();}
+$('#fit-drop').addEventListener('click',chooseFit);
+$('#fit-drop').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseFit();}});
+$('#fit-drop').addEventListener('dragover',e=>{e.preventDefault();$('#fit-drop').classList.add('dragging');});
+$('#fit-drop').addEventListener('dragleave',()=>$('#fit-drop').classList.remove('dragging'));
+$('#fit-drop').addEventListener('drop',e=>{e.preventDefault();$('#fit-drop').classList.remove('dragging');if(!pending)action(()=>uploadFit(e.dataTransfer.files[0]));});
+$('#fit-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(!pending)action(()=>uploadFit(file));});
+$('#fit-view').addEventListener('click',()=>{$('#activities').scrollIntoView({block:'start'});});
+$('#activities').addEventListener('toggle',event=>{
+ const details=event.target.closest('[data-route-activity]');
+ if(!details)return;
+ const container=details.querySelector('[data-activity-map]');
+ const activity=state.activities.find(a=>a.id===details.dataset.routeActivity);
+ if(details.open&&activity?.route?.length>=2)showRouteMap(container,activity.route);
+ else clearRouteMap(container);
+},true);
 $('#actual-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const b=formValue('#actual-form');const offsetDate=new Date(b.planId+'T'+b.time+':00Z');const tz=state.context.timezone;const parts=new Intl.DateTimeFormat('en-US',{timeZone:tz,timeZoneName:'longOffset'}).formatToParts(offsetDate);const offset=parts.find(p=>p.type==='timeZoneName').value.replace('GMT','')||'+00:00';const startedAt=new Date(b.planId+'T'+b.time+':00'+offset).toISOString();state=await api('activities',{source:'manual',activities:[{startedAt,planId:b.planId,trainingType:b.trainingType,durationSeconds:Number(b.minutes)*60,distanceMeters:b.distanceKm===''?null:Number(b.distanceKm)*1000,avgHeartRate:b.avgHeartRate===''?null:Number(b.avgHeartRate),sport:'running',name:'手動登錄訓練',notes:b.notes}]});render();notice('實際結果已保存，完成度已更新。');});});
 $('#llm-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const b=formValue('#llm-form');b.consent=$('#llm-form').elements.consent.checked;state=await api('connections',b);render();notice('分析設定已保存，未呼叫模型。');});});
 $('#clear-key').addEventListener('click',()=>action(async()=>{state=await api('connections',{...state.connections.llm,mode:'mock',clearKey:true});render();notice('Key 已移除，已切回 Mock。');}));

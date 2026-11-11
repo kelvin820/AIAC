@@ -1,6 +1,11 @@
 @echo off
 cd /d "%~dp0"
-if not exist node_modules\@garmin\fitsdk\package.json (
+if not exist node_modules\@garmin\fitsdk\package.json goto install
+if not exist node_modules\leaflet\package.json goto install
+goto run
+
+:install
+(
   where pnpm.cmd >nul 2>nul
   if not errorlevel 1 (
     call pnpm.cmd install --frozen-lockfile
@@ -13,5 +18,6 @@ if not exist node_modules\@garmin\fitsdk\package.json (
     exit /b 1
   )
 )
+:run
 node --env-file-if-exists=.env server.mjs
 pause
