@@ -13,7 +13,8 @@
   "dependencies": {
     "@garmin/fitsdk": "21.221.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "leaflet": "1.9.4"
+    "leaflet": "1.9.4",
+    "yauzl": "3.3.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

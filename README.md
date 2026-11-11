@@ -30,7 +30,7 @@ node --env-file-if-exists=.env server.mjs
 - 去重依同來源 ID、相同 FIT SHA-256，或非手動活動同運動類型、開始相差 30 秒內、時間相差 60 秒內、距離相差 100 m 內合併來源。這是啟發式；缺少距離時僅用精確 ID／雜湊。
 - 時間、距離、配速、平均心率與缺失標示在本地計算，不耗 token；未實作完整心率漂移與生理模型。
 - Apple Watch／Garmin 可透過支援的工具匯出 FIT，或先轉為下方 JSON；不直接讀取 Apple Health XML／HealthKit。
-- Garmin Connect 線上 API 與 FIT SDK 不同。官方有個人與商業存取管道，專用線上 adapter 尚未實作，需帳戶權限與接口文件。AIAC 不收 Garmin 密碼。
+- 本機版支援 Garmin Connect Personal API。將個人金鑰填入本機 `.env` 的 `GARMIN_PERSONAL_API_KEY` 並重啟，從「資料與分析設定」手動同步最近 30 天的原始 FIT。每次最多嘗試下載 10 筆，已成功匯入的活動會跳過。原檔保存在 `data/uploads`，活動頁可讀取 GPS、分圈與逐點曲線。設定 Garmin 金鑰時，背景同步每約 15 分鐘使用 Garmin，Strava 可手動同步。
 
 標準 JSON 頂層為陣列；時間用含 offset 的 ISO 8601，秒／公尺／bpm：
 
@@ -56,7 +56,9 @@ Strava 匯入活動目前限本地摘要與對照，不直接交給自訂 LLM；
 
 已實作 OAuth、state、callback、加密 token 保存、refresh、分頁活動同步與遠端撤銷。需開發者建立 App，在 .env 設 STRAVA_CLIENT_ID、STRAVA_CLIENT_SECRET。Callback domain 為 127.0.0.1；回呼 `http://127.0.0.1:3140/auth/strava/callback` 隨 PORT 調整。使用者在 Strava 網站登入授權 activity:read_all，不把密碼交給 AIAC。
 
-同步從課表週起點往前一天開始，每次最多 10 頁 × 100 筆，達上限標示不完整；API 錯誤時不寫入部分活動。需要有效 App、帳戶資格、授權與服務額度，未用真實帳戶端對端驗證。此登入是資料來源授權，不是 AIAC 雲端會員登入。
+本機 AIAC 服務執行期間，Strava 授權完成後會自動同步，即使瀏覽器已關閉。首次讀取最近七天，之後約每 15 分鐘增量同步，保留一天重疊以讀取稍晚上傳的活動。同一筆活動仍會去重。服務重啟後接續上次成功進度，停止服務期間暫停同步。首頁顯示最新同步活動，資料設定頁可查看同步時間和錯誤，也可立即同步。
+
+每次最多讀取 10 頁，每頁 100 筆。超過上限或 API 錯誤時保留上次成功進度，授權失效則暫停至重新登入。需要有效 App、帳戶資格、授權與服務額度，尚待真實帳戶驗證。GitHub Pages 試用版不會執行背景同步。
 
 ## MCP
 

@@ -25,8 +25,8 @@ export function showRouteMap(container, route) {
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'secondary';
-  toggle.textContent = '顯示街道底圖';
-  toggle.setAttribute('aria-pressed', 'false');
+  toggle.textContent = '隱藏街道底圖';
+  toggle.setAttribute('aria-pressed', 'true');
   const status = document.createElement('p');
   status.className = 'small route-tile-status';
   status.setAttribute('role', 'status');
@@ -56,6 +56,7 @@ export function showRouteMap(container, route) {
     status.textContent = '部分街道底圖載入失敗，GPS 軌跡仍可查看。';
     status.hidden = false;
   });
+  tiles.addTo(map);
   toggle.addEventListener('click', () => {
     const enabled = !map.hasLayer(tiles);
     status.hidden = true;

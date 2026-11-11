@@ -2,7 +2,7 @@ import {createDemoService} from '../src/demo-service.mjs';
 const service=createDemoService(localStorage);
 globalThis.AIAC_DEMO={...service,decorate(){
  document.body.classList.add('demo');document.querySelector('#mode').textContent='● DEMO · 不使用付費 LLM';
- document.querySelectorAll('#llm-form input,#llm-form select,#llm-form button,#mcp-form input,#mcp-form button,#strava-login,#strava-sync,#strava-disconnect').forEach(e=>e.disabled=true);
+ document.querySelectorAll('#llm-form input,#llm-form select,#llm-form button,#mcp-form input,#mcp-form button,#strava-login,#strava-sync,#strava-backfill,#strava-disconnect,#garmin-sync').forEach(e=>e.disabled=true);
  document.querySelector('#key-status').textContent='線上試用不收集 API Key。使用自己的模型與線上資料連接，請下載本機版本。';
  const privacy=document.querySelector('#reset').closest('.card').querySelector('p');privacy.textContent='此試用資料保存在你目前瀏覽器的 localStorage，不會送往 AIAC、LLM 或其他訪客。FIT 在本機瀏覽器解析；不保存原始檔。重設只清除這個瀏覽器的試用資料。';
 }};

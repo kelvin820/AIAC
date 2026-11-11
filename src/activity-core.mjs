@@ -12,7 +12,18 @@ export function importActivities(state,items,activityIds){
  let added=0,duplicates=0;
  for(const a of items){
   const existing=state.activities.find(x=>x.source===a.source&&x.sourceId===a.sourceId||x.fingerprint&&x.fingerprint===a.fingerprint||x.source!=='manual'&&a.source!=='manual'&&x.sport.toLowerCase()===a.sport.toLowerCase()&&Math.abs(Date.parse(x.startedAt)-Date.parse(a.startedAt))<=30000&&Math.abs(x.durationSeconds-a.durationSeconds)<=60&&x.distanceMeters!==null&&a.distanceMeters!==null&&Math.abs(x.distanceMeters-a.distanceMeters)<=100);
-  if(existing){duplicates++;if(a.route&&!existing.route)existing.route=a.route;for(const s of a.sources)if(!existing.sources.some(x=>x.source===s.source&&x.sourceId===s.sourceId))existing.sources.push(s);}
+  if(existing){
+   duplicates++;
+   if(a.route&&(!existing.route||(a.source==='fit'&&!existing.sources.some(source=>source.source==='fit'))))existing.route=a.route;
+   if(a.laps?.length&&!existing.laps?.length)existing.laps=a.laps;
+   if(a.fingerprint&&!existing.fingerprint)existing.fingerprint=a.fingerprint;
+   if(a.avgHeartRate!==null&&existing.avgHeartRate===null){
+    existing.avgHeartRate=a.avgHeartRate;
+    existing.quality=existing.quality.filter(issue=>issue!=='缺少心率');
+   }
+   if(a.stravaMetrics)existing.stravaMetrics={...existing.stravaMetrics,...a.stravaMetrics};
+   for(const s of a.sources)if(!existing.sources.some(x=>x.source===s.source&&x.sourceId===s.sourceId))existing.sources.push(s);
+  }
   else {state.activities.push(a);added++;}
   activityIds?.push((existing??a).id);
  }return {added,duplicates};
