@@ -1,0 +1,20 @@
+{
+  "name": "aiac",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test",
+    "build:demo": "node scripts/build-demo.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@garmin/fitsdk": "21.221.0",
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

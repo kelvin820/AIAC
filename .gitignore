@@ -1,0 +1,6 @@
+data/
+data-test*/
+.env
+*.fit
+node_modules/
+dist/

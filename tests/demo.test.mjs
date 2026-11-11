@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {Encoder,Profile} from '@garmin/fitsdk';
+import {createDemoService} from '../src/demo-service.mjs';
+function storage(){const map=new Map();return {getItem:k=>map.get(k)||null,setItem:(k,v)=>map.set(k,v)};}
+test('browser demo completes coaching loop, persists locally and isolates visitors',async()=>{
+ const local=storage(),one=createDemoService(local),two=createDemoService(storage());let s=await one.request('state');s.context.date=s.plan[1].id;s.profile.name='Visitor A';await one.request('settings',{profile:s.profile,context:s.context});s=await one.request('coach',{kind:'chat',message:'今天不想跑 Interval，改 Zone2 好嗎？'});const r=s.recommendations.at(-1);assert.equal(s.plan[1].type,'Interval');s=await one.request('decision',{id:r.id,decision:'accepted'});assert.equal(s.plan[1].type,'Zone2');assert.equal((await createDemoService(local).request('state')).profile.name,'Visitor A');assert.equal((await two.request('state')).profile.name,'');await assert.rejects(one.request('connections',{mode:'byok',apiKey:'test-secret'}));assert.ok(!local.getItem('aiac-browser-demo-v1').includes('test-secret'));
+});
+test('browser FIT import uses SDK, local SHA-256 dedup and plan matching',async()=>{
+ const demo=createDemoService(storage());let s=await demo.request('state');const e=new Encoder(),start=new Date(s.plan[0].id+'T07:00:00+08:00');e.onMesg(Profile.MesgNum.FILE_ID,{type:'activity',manufacturer:'development',timeCreated:start});e.onMesg(Profile.MesgNum.SESSION,{startTime:start,timestamp:new Date(+start+1800000),sport:'running',totalTimerTime:1800,totalDistance:5000});const file=new File([e.close()],'test.fit');s=await demo.importFit(file);assert.equal(s.imported.added,1);s=await demo.importFit(file);assert.equal(s.imported.duplicates,1);s=await demo.request('activity-link',{id:s.activities[0].id,planId:s.plan[0].id,trainingType:'Zone2'});assert.equal(s.comparison[0].actualMinutes,30);assert.equal(s.budget.completed,30);
+});
+test('browser save failure does not silently keep unsaved state',async()=>{const local=storage(),demo=createDemoService(local);const s=await demo.request('state');s.profile.name='Should not save';local.setItem=()=>{throw Error('quota');};await assert.rejects(demo.request('settings',{profile:s.profile,context:s.context}),/空間不足/);assert.equal((await demo.request('state')).profile.name,'');});
