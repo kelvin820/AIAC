@@ -12,12 +12,21 @@ export function selectPlanWeek(state, date) {
   if (selected === current) return;
   const history = state.planHistory ??= {};
   history[current] = state.plan;
-  state.plan = history[selected] ?? Array.from({length:7}, (_, index) => {
-    const day = new Date(`${selected}T12:00:00Z`);
+  state.plan = history[selected] ?? restWeek(selected);
+  delete history[selected];
+}
+
+function restWeek(monday) {
+  return Array.from({length:7}, (_, index) => {
+    const day = new Date(`${monday}T12:00:00Z`);
     day.setUTCDate(day.getUTCDate() + index);
     return {id:day.toISOString().slice(0, 10), type:'Rest', minutes:0, completed:false};
   });
-  delete history[selected];
+}
+
+export function ensurePlanWeek(state,date) {
+  const monday=weekStart(date);
+  if(monday!==state.plan[0].id) (state.planHistory??={})[monday]??=restWeek(monday);
 }
 
 export function hasPlanDate(state, date) {
@@ -40,6 +49,7 @@ export function advanceToToday(state, today) {
   if (typeof previous === 'string' && previous < today) {
     const followed = state.plan.some(day => day.id === previous);
     state.context.date = today;
+    delete state.context.trainingIntent;
     if (followed) selectPlanWeek(state, today);
   }
   return true;

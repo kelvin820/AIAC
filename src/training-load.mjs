@@ -7,6 +7,8 @@
 // functions over AIAC activity records, added a running pace score, and every score carries
 // its source and confidence so estimates are never shown as measurements. See docs/THIRD_PARTY.md.
 
+import {circuitDeviceRecords} from '../public/kettlebell-core.js';
+
 export const CTL_DAYS = 42;
 export const ATL_DAYS = 7;
 
@@ -114,9 +116,20 @@ export function formStatus(tsb) {
 }
 
 // Summary for the UI: today's values, 7-day change, recent series and per-activity scores.
+export function loadActivities(state) {
+  const devices=circuitDeviceRecords(state);
+  const standalone=state.activities.filter(activity=>!activity.kettlebellSessionId);
+  const circuits=(state.kettlebell?.sessions??[]).flatMap(session=>{
+    const device=devices.get(session.id);
+    return device?[{...device,id:session.id,date:session.plan.date}]:[];
+  });
+  return [...standalone,...circuits];
+}
+
 export function loadSummary(state, today = state.context.date, days = 90) {
   const athlete = state.athlete ?? defaultAthlete();
-  const series = performanceSeries(state.activities, athlete, today);
+  const records=loadActivities(state);
+  const series = performanceSeries(records, athlete, today);
   const last = series.at(-1) ?? null;
   const weekAgo = series.at(-8) ?? null;
   const confidence = {high:0, medium:0, low:0};
@@ -124,7 +137,11 @@ export function loadSummary(state, today = state.context.date, days = 90) {
   for (const activity of state.activities) {
     const load = activityLoad(activity, athlete);
     perActivity[activity.id] = load;
-    if (load.score > 0) confidence[load.confidence]++;
+  }
+  for(const activity of records){
+    const load=perActivity[activity.id]??activityLoad(activity,athlete);
+    perActivity[activity.id]=load;
+    if(load.score>0)confidence[load.confidence]++;
   }
   return {
     today: last && {date:last.date, ctl:last.ctl, atl:last.atl, tsb:last.tsb, status:formStatus(last.tsb)},

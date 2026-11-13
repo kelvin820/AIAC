@@ -2,9 +2,10 @@
 // distribution and personal bests. Pure and browser-safe so the local server and the browser
 // demo share it. Zone bands follow the common LTHR-based five-zone model; PMC comes from
 // training-load.mjs (adapted from Coach Watts, Apache 2.0, see docs/THIRD_PARTY.md).
-import {activityLoad, defaultAthlete, performanceSeries} from './training-load.mjs';
+import {activityLoad, defaultAthlete, loadActivities, performanceSeries} from './training-load.mjs';
 import {activityLapFacts} from './activity-core.mjs';
 import {weekStart} from './plan-weeks.mjs';
+import {sessionTotals} from '../public/kettlebell-core.js';
 
 // Upper bounds as a share of threshold heart rate. Z5 is everything at or above threshold.
 export const HR_ZONES = [
@@ -64,18 +65,29 @@ export function performanceData(state, today = state.context.date) {
   const athlete = state.athlete ?? defaultAthlete();
   const threshold = thresholdHeartRate(athlete);
   const planTypes = new Map([...state.plan, ...Object.values(state.planHistory ?? {}).flat()].map(day => [day.id, day.type]));
-  const activities = state.activities.filter(a => a.date <= today).map(a => {
+  const activities = state.activities.filter(a => a.date <= today && !a.kettlebellSessionId).map(a => {
     const load = activityLoad(a, athlete);
     const type = a.trainingType && a.trainingType !== 'Unknown' ? a.trainingType : (a.planId && planTypes.get(a.planId)) || 'Unknown';
     return {id:a.id, date:a.date, week:weekStart(a.date), minutes:a.durationSeconds / 60, distanceMeters:a.distanceMeters, load:load.score,
       confidence:load.confidence, type, zone:heartRateZone(a.avgHeartRate, threshold), sport:a.sport};
   });
+  const loadRecords=loadActivities(state);
+  const circuitRecords=new Map(loadRecords.map(activity=>[activity.id,activity]));
+  for(const session of state.kettlebell?.sessions??[]){
+    const date=session.plan.date;
+    if(date>today)continue;
+    const device=circuitRecords.get(session.id);
+    const load=device?activityLoad(device,athlete):null;
+    activities.push({id:session.id,date,week:weekStart(date),minutes:sessionTotals(session).totalSeconds/60,
+      distanceMeters:null,load:load?.score??0,confidence:load?.confidence??null,type:'Kettlebell',
+      zone:heartRateZone(device?.avgHeartRate,threshold),sport:'kettlebell'});
+  }
   return {
     today,
-    pmc:performanceSeries(state.activities, athlete, today).map(({date, load, ctl, atl, tsb}) => ({date, load, ctl, atl, tsb})),
+    pmc:performanceSeries(loadRecords, athlete, today).map(({date, load, ctl, atl, tsb}) => ({date, load, ctl, atl, tsb})),
     activities,
     zones:HR_ZONES.map(({key, label, max}) => ({key, label, maxBpm:threshold && Number.isFinite(max) ? Math.round(threshold.bpm * max) : null})),
     threshold,
-    bests:personalBests(state.activities.filter(a => a.date <= today)),
+    bests:personalBests(state.activities.filter(a => a.date <= today && !a.kettlebellSessionId)),
   };
 }

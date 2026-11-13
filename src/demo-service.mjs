@@ -2,12 +2,13 @@ import {exportBackup,restoreBackup} from './backup.mjs';
 import {initialState} from './initial-state.mjs';
 import {loadSummary,validateAthlete,defaultAthlete} from './training-load.mjs';
 import {performanceData} from './performance.mjs';
-import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './plan-weeks.mjs';
-import {budget,mockCoach,validatePlan} from './coach.mjs';
+import {advanceToToday,ensurePlanWeek,hasPlanDate,selectPlanWeek,todayIn} from './plan-weeks.mjs';
+import {budget,guardRecordedPlan,mockCoach,validatePlan} from './coach.mjs';
+import {updateKettlebell} from '../public/kettlebell-core.js';
 import {normalizeActivity,importActivities,comparison,activitySummary} from './activity-core.mjs';
 import {decodeFitBytes} from './fit-core.mjs';
 const key='aiac-browser-demo-v1';
-const version=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType]));
+const version=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
 export function createDemoService(storage){
  let state;try{state=JSON.parse(storage.getItem(key)||'null')||initialState();state.athlete??=defaultAthlete();}catch{throw Error('無法讀取瀏覽器試用資料，請允許此網站的儲存權限或清除已損壞資料。');}
  function view(s){return {...structuredClone(s),mode:'mock',demo:true,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),connections:{...structuredClone(s.connections),llm:{...s.connections.llm,hasKey:false},mcp:{...s.connections.mcp,hasBearer:false},strava:{configured:false,connected:false}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
@@ -22,6 +23,9 @@ export function createDemoService(storage){
     if(!b.profile||!b.context)throw Error('設定格式不正確');
     if(!Number.isFinite(Number(b.context.minutes))||b.context.minutes<0||b.context.minutes>180||!Number.isFinite(Number(b.profile.weeklyMinutes))||b.profile.weeklyMinutes<0||b.profile.weeklyMinutes>2000)throw Error('請檢查時間與每週目標');
     new Intl.DateTimeFormat('en',{timeZone:b.context.timezone});s.profile={...b.profile,weeklyMinutes:Number(b.profile.weeklyMinutes)};s.context={...b.context,minutes:Number(b.context.minutes)};
+   }else if(path==='kettlebell'){
+    updateKettlebell(s,b);
+    if(b.action==='save')ensurePlanWeek(s,b.date);
    }else if(path==='plan-week'){
     selectPlanWeek(s,b.date);
    }else if(path==='plan'){
@@ -34,12 +38,12 @@ export function createDemoService(storage){
     s.messages.push({role:'user',text:b.message,at},{role:'assistant',text:result.text,at,recommendationId:id});s.recommendations.push({id,at,kind:b.kind,...result,status:'pending',activityId:b.activityId||null,activityVersion:version(s),context:structuredClone(s.context),profile:structuredClone(s.profile),planBefore:structuredClone(s.plan),budget:budget(s)});
    }else if(path==='decision'){
     const r=s.recommendations.find(r=>r.id===b.id);if(!r||r.status!=='pending'||!r.proposedPlan||!['accepted','rejected'].includes(b.decision))throw Error('沒有可確認的提案');
-    if(b.decision==='accepted'){if(JSON.stringify(r.planBefore)!==JSON.stringify(s.plan)||r.activityVersion!==version(s))throw Error('課表或實際活動已變更，請重新產生提案');const next=validatePlan(r.proposedPlan,s.plan);s.revisions.push({at:new Date().toISOString(),reason:r.text,before:s.plan,after:next});s.plan=next;}r.status=b.decision;
+    if(b.decision==='accepted'){if(JSON.stringify(r.planBefore)!==JSON.stringify(s.plan)||r.activityVersion!==version(s))throw Error('課表或實際活動已變更，請重新產生提案');const next=validatePlan(r.proposedPlan,s.plan);guardRecordedPlan(s,next);s.revisions.push({at:new Date().toISOString(),reason:r.text,before:s.plan,after:next});s.plan=next;}r.status=b.decision;
    }else if(path==='activities'){
     if(!Array.isArray(b.activities)||b.activities.length>1000)throw Error('請提供最多 1000 筆的標準活動陣列');if(b.activities.some(a=>a.planId&&!hasPlanDate(s,a.planId)))throw Error('對應課表日期不存在');
     const result=importActivities(s,b.activities.map(a=>normalizeActivity(a,b.source||'manual',s.context.timezone)));return {...save(s),imported:result};
    }else if(path==='activity-link'){
-    const a=s.activities.find(a=>a.id===b.id);if(!a||b.planId&&!hasPlanDate(s,b.planId))throw Error('活動或課表不存在');if(!['Unknown','Zone2','Interval','Tempo','Recovery','Rest','Long Run','Indoor'].includes(b.trainingType))throw Error('訓練類型不正確');a.planId=b.planId||null;a.trainingType=b.trainingType;
+    const a=s.activities.find(a=>a.id===b.id);if(!a||b.planId&&!hasPlanDate(s,b.planId))throw Error('活動或課表不存在');if(a.kettlebellSessionId)throw Error('這筆活動已對應壺鈴課，請先在壺鈴結果解除對應。');if(!['Unknown','Zone2','Interval','Tempo','Recovery','Rest','Long Run','Indoor'].includes(b.trainingType))throw Error('訓練類型不正確');a.planId=b.planId||null;a.trainingType=b.trainingType;
    }else if(path==='activity-delete')s.activities=s.activities.filter(a=>a.id!==b.id);
    else if(path==='memory'){
     if(b.action==='delete')s.memories=s.memories.filter(m=>m.id!==b.id);else{if(typeof b.text!=='string'||!b.text.trim()||b.text.length>2000)throw Error('請填寫 2000 字以內的記憶');const m=s.memories.find(m=>m.id===b.id);if(m)m.text=b.text;else s.memories.push({id:crypto.randomUUID(),text:b.text,confirmed:true,source:'user',at:new Date().toISOString()});}

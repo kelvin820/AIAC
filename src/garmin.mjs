@@ -59,9 +59,17 @@ export function createGarmin(apiKey) {
    const response = await request('/personalapitoken-service/personal-api/personal-api-key/token', {
     method:'POST', headers:{Authorization:'ApiKey '+apiKey.trim()},
    });
-   if (!response.ok) throw Error(`Garmin 金鑰驗證失敗（HTTP ${response.status}）。`);
-   token = (await response.text()).trim();
-   expiresAt = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString()).exp;
+   if (!response.ok) {
+    if ([400,401,403].includes(response.status)) {
+     throw Object.assign(Error('Garmin 拒絕此金鑰。請確認有效期限，必要時更換本機 .env 的金鑰並重啟 AIAC。'),{code:'GARMIN_KEY_REJECTED'});
+    }
+    throw Error(`Garmin 金鑰驗證暫時失敗（HTTP ${response.status}）。`);
+   }
+   const accessToken = (await response.text()).trim();
+   const expiration = JSON.parse(Buffer.from(accessToken.split('.')[1] ?? '', 'base64url').toString()).exp;
+   if (!Number.isFinite(expiration)) throw Error('Garmin 回傳的授權期限格式不正確。');
+   token = accessToken;
+   expiresAt = expiration;
   }
   const response = await request(path, {headers:{Authorization:'Bearer '+token, Accept:accept}});
   if (response.status === 401) token = undefined;

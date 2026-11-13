@@ -24,13 +24,21 @@ node --env-file-if-exists=.env server.mjs
 
 修改課表保留版本紀錄，不覆寫活動。Coaching 提案需確認才套用；已有實際結果的課程不可被提案改寫，活動變動後舊提案失效。可切換前一週／本週／下一週；切換時保留各週課表與已對應的實際活動，新週次預設為休息日。每天第一次開啟時，若「今天」的情境日期已過時，會自動改為當天，原本顯示舊日期所在週的課表也會跟著切到本週；當天手動選的過去日期會保留到隔天。
 
+在「今日訓練」或「週課表」可排全身壺鈴間歇。填可用時間與器材，預覽 4–5 個動作與 2–5 輪。每輪沿用同一套動作，可在動作開始前替換同類站點。計時段結束後確認結果，支援暫停、續練、加休息和提前結束。壺鈴使用完整輪數與動作秒數對照計畫；保留被替代的跑步課程，不換算跑步里程。「訓練研究」提供可搜尋的研究結論、限制與原文連結。
+
+課表預覽和訓練中的「看 3D 示範」可播放動作、切換角度、半速觀看或暫停。示範由 Three.js 在瀏覽器繪製，開啟後才載入；若無法啟用 WebGL 2，仍可讀動作要點。硬舉、深蹲與擺盪的動作重點參考 [ACE 入門指導](https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/)與 [ACE 雙手擺盪教學](https://www.acefitness.org/resources/everyone/exercise-library/391/swing/)。
+
+壺鈴課表、進度及訓練紀錄保存在 `data/state.json`，納入備份／還原。靜態試用版存在目前瀏覽器的 localStorage。組課、計時和研究搜尋都不呼叫 LLM，也不需要 API Key。若同一堂課也用手錶記錄，先同步裝置或匯入 FIT，再從壺鈴結果的「同一堂課的裝置紀錄」確認對應。同一堂課可對應多個來源。各筆裝置活動、時間與心率仍可查閱，週進度、活動行事曆及表現分析以 AIAC 計時列入一次。訓練負荷與心率區間採用一筆裝置紀錄，優先取有平均心率的資料。解除對應後，裝置活動恢復單獨計算。
+
+「今日訓練」顯示今天的課與最近同步活動。確認器材後可選「照原計畫」保存選擇，或補充可用時間與調整方向，再按「請教練幫我調整」取得建議。
+
 ## FIT 與活動
 
 - 使用 Garmin 官方 @garmin/fitsdk，檢查 FIT 完整性／CRC。解析 session 開始時間、運動時間、距離、平均心率及可用 lap 摘要；多 session 分開保存。上限 20 MB。原檔在 data/uploads，不送 LLM。
 - 去重依同來源 ID、相同 FIT SHA-256，或非手動活動同運動類型、開始相差 30 秒內、時間相差 60 秒內、距離相差 100 m 內合併來源。這是啟發式；缺少距離時僅用精確 ID／雜湊。
 - 時間、距離、配速、平均心率與缺失標示在本地計算，不耗 token；未實作完整心率漂移與生理模型。
 - Apple Watch／Garmin 可透過支援的工具匯出 FIT，或先轉為下方 JSON；不直接讀取 Apple Health XML／HealthKit。
-- 本機版支援 Garmin Connect Personal API。將個人金鑰填入本機 `.env` 的 `GARMIN_PERSONAL_API_KEY` 並重啟，從「資料與分析設定」手動同步最近 30 天的原始 FIT。每次最多嘗試下載 10 筆，已成功匯入的活動會跳過。原檔保存在 `data/uploads`，活動頁可讀取 GPS、分圈與逐點曲線。設定 Garmin 金鑰時，背景同步每約 15 分鐘使用 Garmin，Strava 可手動同步。
+- 本機版支援 Garmin Connect Personal API。將個人金鑰填入本機 `.env` 的 `GARMIN_PERSONAL_API_KEY` 並重啟，從「同步與設定 → 裝置同步」手動同步最近 30 天的原始 FIT。每次最多嘗試下載 10 筆，已成功匯入的活動會跳過。原檔保存在 `data/uploads`，活動頁可讀取 GPS、分圈與逐點曲線。設定 Garmin 金鑰時，背景同步每約 15 分鐘使用 Garmin，Strava 可手動同步。
 
 標準 JSON 頂層為陣列；時間用含 offset 的 ISO 8601，秒／公尺／bpm：
 
@@ -56,17 +64,17 @@ node --env-file-if-exists=.env server.mjs
 
 ## 自帶 LLM 與費用
 
-「資料與分析設定」貼自己的 API Key、Base URL 與模型 ID。接口需相容 `/chat/completions`、`response_format: json_object`、`max_tokens`。支援 HTTPS，本機模型可用 localhost HTTP。
+在「同步與設定 → 教練與額度」貼自己的 API Key、Base URL 與模型 ID。接口需相容 `/chat/completions`、`response_format: json_object`、`max_tokens`。支援 HTTPS，本機模型可用 localhost HTTP。
 
 - 預設 Mock。即使環境有 LLM_API_KEY 也不會自動使用；舊 .env LLM 設定請改由畫面明確設定，避免燒開發者額度。
 - 開頁、編輯、匯入、同步、完成度與本地摘要都不呼叫 LLM。
-- 只有點晨間建議、送出對話、點活動教練分析才會呼叫。沒有背景分析、自動重試或共享 Key 回退。
+- 選擇照原計畫只保存情境。外部模型模式下，請教練調整、送出對話或分析單筆活動時才會呼叫供應商。
 - 每日嘗試上限預設 5 次，單次輸出上限 800 tokens，可調整。失敗也占額度，供應商可能仍計費。輸入亦計費，因此這不是精確金額上限。
 - 輸入情境最多 32000 字元，最近 12 則對話每則最多 1200 字元、10 筆活動摘要、20 筆記憶。不傳 FIT 原始位元組與逐秒紀錄。
 - 傳送範圍：Profile、Daily Context、週計畫、Budget、已確認記憶、有限活動摘要及對話。移除 Key 會切回 Mock。Mock 不是 LLM，也不是科學驗證的訓練引擎。
 - AIAC 付費代管尚未開通；沒有結帳、錢包、多用戶額度或共享 Key，尚不收費。
 
-Strava 匯入活動目前限本地摘要與對照，不直接交給自訂 LLM；官方 MCP 的 AI 使用須依服務商支援與資料政策進行。
+Strava 匯入資料限本機摘要與對照。合併 Garmin 與 Strava 的單筆活動若有本機原始 FIT，可從 FIT 重建分析摘要並交給已設定的外部模型。
 
 ## Strava
 

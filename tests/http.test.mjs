@@ -30,5 +30,14 @@ test('HTTP coaching loop, accept/reject, stale proposal, and restart persistence
   s=(await call('coach',{kind:'chat',message:'我今天只有 30 分鐘'})).data;r=s.recommendations.at(-1);s.plan[0].minutes=35;
   await call('plan',{plan:s.plan});assert.equal((await call('decision',{id:r.id,decision:'accepted'})).status,400);
   const bad=await fetch(`http://127.0.0.1:${port}/api/reset`,{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.invalid'},body:'{"confirm":"DELETE"}'});assert.equal(bad.status,403);
+  const date=new Intl.DateTimeFormat('en-CA',{timeZone:s.context.timezone}).format(new Date());
+  const savedCircuit=await call('kettlebell',{action:'save',date,minutes:30,count:5,rounds:4,pace:'steady',weights:[8,12],familiar:[]});
+  assert.equal(savedCircuit.status,200);assert.equal(savedCircuit.data.kettlebell.plans[date].rounds,4);
+  const started=(await call('kettlebell',{action:'start',date})).data.kettlebell.active;
+  const paused=await call('kettlebell',{action:'pause',id:started.id,rev:started.rev});
+  assert.equal(paused.status,200);assert.equal(paused.data.kettlebell.active.deadline,null);
+  await stop();await start();
+  assert.deepEqual((await call('state')).data.kettlebell.active,paused.data.kettlebell.active);
+  assert.equal((await call('backup')).data.data.kettlebell.plans[date].rounds,4);
  }finally{if(child)await stop();await rm(dir,{recursive:true,force:true});}
 });

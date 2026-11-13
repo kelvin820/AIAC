@@ -2,6 +2,7 @@ import {initialState} from './initial-state.mjs';
 import {validatePlan} from './coach.mjs';
 import {weekStart} from './plan-weeks.mjs';
 import {defaultAthlete,validateAthlete} from './training-load.mjs';
+import {emptyKettlebell,matchesCircuitTime,restoreKettlebell} from '../public/kettlebell-core.js';
 
 export const backupLimit = 10 * 1024 * 1024;
 const fields = ['profile','athlete','context','plan','planHistory','activities','messages','recommendations','revisions','memories'];
@@ -15,7 +16,7 @@ const check = (condition, label) => {if (!condition) throw Error(`備份的${lab
 export function exportBackup(state) {
   return {
     format:'aiac-backup', version:1, exportedAt:new Date().toISOString(),
-    data:Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : undefined))])),
+    data:{...Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : undefined))])),kettlebell:structuredClone(state.kettlebell??emptyKettlebell())},
   };
 }
 
@@ -80,5 +81,12 @@ export function restoreBackup(state, backup) {
   const {lastOpenedOn, ...rest} = state;
   // Backups made before athlete thresholds existed have no athlete record.
   const athlete = data.athlete === undefined ? defaultAthlete() : validateAthlete(data.athlete);
-  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : structuredClone(data[key])]))};
+  const kettlebell=restoreKettlebell(data.kettlebell);
+  const sessions=new Map(kettlebell.sessions.map(session=>[session.id,session]));
+  for(const activity of data.activities){
+    if(activity.kettlebellSessionId===undefined)continue;
+    const session=sessions.get(activity.kettlebellSessionId);
+    check(id(activity.kettlebellSessionId)&&session&&activity.planId===null&&matchesCircuitTime(session,activity),'壺鈴活動對應');
+  }
+  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : structuredClone(data[key])])),kettlebell};
 }
