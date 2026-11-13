@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：深讀 watt-mind/coach（Coach Watts，Apache 2.0），寫成 `docs/COACH_WATTS_ADOPTION.md`：授權與借用原則、九個模組對照、可借用的公式（TSS／HRSS／估算、CTL／ATL／TSB、週目標與恢復週、結構化課表格式）、8 期分期計畫。未改程式碼。
+- **狀態**：已推分支（PR #2）。
+- **測試**：未改程式碼。
+- **未完成／注意**：等使用者確認「Coaching」範圍與順序；建議先做第 1 期「訓練負荷引擎與運動員檔案」。借用程式碼時要標註來源並加 `docs/THIRD_PARTY.md`。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：使用者要求圖示更鮮豔（參考 Coach Watts）。側欄每個分頁一個鮮豔顏色（今日橘、課表綠、我 青、日誌紫、資料藍，CSS `--ic`），選中時整格以同色淡底＋色條標示；KPI 標籤加彩色小圖示；訓練類型色提高飽和度，課表進度環改用該天的訓練類型色；品牌綠改為 `#2FE39A`。
 - **狀態**：已推分支，待合併（PR #2）。
 - **測試**：node --test 34 項通過；build-demo 成功；截圖已更新。
