@@ -327,27 +327,28 @@ function dayActivities(date){
  if(session)activities.push({id:session.id,date,name:'全身壺鈴間歇',durationSeconds:sessionTotals(session).totalSeconds,kettlebell:true});
  return activities;
 }
-function weekChart(){
- const days=state.plan.map(effectiveDay);
+function weekChart(week){
+ const days=week.plan.map(effectiveDay);
  const actual=days.map(day=>dayActivities(day.id).reduce((sum,a)=>sum+a.durationSeconds/60,0));
  const planned=days.map(day=>day.minutes);
  const top=Math.max(30,Math.ceil(Math.max(...planned,...actual)/30)*30),W=560,H=200,L=30,R=6,T=12,B=28,ph=H-T-B,slot=(W-L-R)/7;
  const y=v=>T+ph-(v/top)*ph;
  const grid=[0,top/2,top].map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('');
- const bars=days.map((d,i)=>{const x=L+i*slot,pw=slot*.56,px=x+(slot-pw)/2,aw=slot*.34,ax=x+(slot-aw)/2,c=state.comparison[i],t=d.type==='Kettlebell'?d.type:c.actualTypes.find(t=>t!=='Unknown')||d.type;
+ const bars=days.map((d,i)=>{const x=L+i*slot,pw=slot*.56,px=x+(slot-pw)/2,aw=slot*.34,ax=x+(slot-aw)/2,c=week.comparison[i],t=d.type==='Kettlebell'?d.type:c.actualTypes.find(t=>t!=='Unknown')||d.type;
   const plan=d.minutes?`<rect class="plan" x="${px}" y="${y(d.minutes)}" width="${pw}" height="${(d.minutes/top)*ph}" rx="3"/>`:'';
   const act=actual[i]?`<rect class="bar" data-type="${esc(t)}" x="${ax}" y="${y(actual[i])}" width="${aw}" height="${(actual[i]/top)*ph}" rx="2"><title>${esc(d.id)} 實際 ${actual[i].toFixed(1)} 分鐘</title></rect>`:'';
-  return plan+act+`<text class="axis${d.id===state.context.date?' today':''}" x="${x+slot/2}" y="${H-8}" text-anchor="middle">${'一二三四五六日'[i]}</text>`;}).join('');
+  return plan+act+`<text class="axis${d.id===week.today?' today':''}" x="${x+slot/2}" y="${H-8}" text-anchor="middle">${'一二三四五六日'[i]}</text>`;}).join('');
  const used=[...new Set(days.map(d=>d.type).filter(t=>t!=='Rest'))];
  return `<svg class="week-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="本週每日預計與實際分鐘">${grid}${bars}</svg><div class="chart-legend"><span><i class="planned"></i>預計</span>${used.map(t=>`<span><i data-type="${esc(t)}"></i>${esc(typeNames[t]||t)}</span>`).join('')}</div>`;
 }
-function renderKpis(b){
- const linked=state.comparison.reduce((sum,day)=>sum+linkedMinutes(day),0);
+function renderKpis(week){
+ const b=week.budget;
+ const linked=week.comparison.reduce((sum,day)=>sum+linkedMinutes(day),0);
  const pct=b.planned?Math.round(linked/b.planned*100):null;
- const planned=state.plan.map(effectiveDay).filter(day=>day.minutes>0);
+ const planned=week.plan.map(effectiveDay).filter(day=>day.minutes>0);
  const done=planned.filter(day=>day.type==='Kettlebell'
   ?findCircuitResult(state,day.id)&&sessionTotals(findCircuitResult(state,day.id)).rounds===findCircuit(state,day.id).rounds
-  :state.comparison.find(result=>result.planId===day.id)?.ratio>=1).length;
+  :week.comparison.find(result=>result.planId===day.id)?.ratio>=1).length;
  const days=planned.length;
  const kpiIcon=d=>`<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;$('#kpis').innerHTML=`<div class="kpi lead" data-ic="pulse"><span>${kpiIcon('<path d="M3 12h4l2-6 4 12 2-6h6"/>')}本週實際</span><strong>${b.completed.toFixed(0)}<small>/ ${b.target} 分鐘</small></strong><em>週目標 ${b.target?Math.round(b.completed/b.target*100):0}%</em></div><div class="kpi" data-ic="plan"><span>${kpiIcon('<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>')}課表規劃</span><strong>${b.planned}<small>分鐘</small></strong><em>${days} 個訓練日</em></div><div class="kpi" data-ic="target"><span>${kpiIcon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/>')}課表完成度</span><strong>${pct===null?'—':pct}<small>%</small></strong><em>已完成 ${done} / ${days} 天</em></div><div class="kpi" data-ic="bolt"><span>${kpiIcon('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>')}品質課</span><strong>${b.quality}<small>次</small></strong><em>Interval／Tempo</em></div>`;
 }
@@ -734,16 +735,17 @@ document.querySelector('#health').addEventListener('click',e=>{
 });
 function render(){
  $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
- const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();
+ const week=state.currentWeek,b=week.budget;
+ renderKpis(week);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();
  renderAthlete();
- $('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
+ $('#budget').innerHTML=weekChart(week)+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
  const r=state.recommendations.at(-1);
  $('#recommendation').innerHTML=r?`<h2>教練建議</h2><p class="small">${r.mode==='mock'?'Mock 示範':esc(r.model)} · ${esc(r.at.slice(0,10))}</p>
   ${planDiff(r)}<p>${esc(r.text)}</p>${recommendationDetails(r)}`
   :'<h2>教練建議</h2><p class="muted">需要改課時，從上方選擇「請教練幫我調整」。</p>';
  $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'YOU':'AIAC COACH'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC COACH</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
  renderDailyOverview();
- $('#budget-week-title').textContent=`${state.plan[0].id.slice(5)} 至 ${state.plan[6].id.slice(5)}`;
+ $('#budget-week-title').textContent=`${week.plan[0].id.slice(5)} 至 ${week.plan.at(-1).id.slice(5)}`;
  renderWeeklyPlan();
  kettlebell.render();
  $('#kb-activity-link').innerHTML=circuitButton(state.kettlebell?.active?.plan.date??planWeekDate('today'),'壺鈴訓練與紀錄 →','secondary');

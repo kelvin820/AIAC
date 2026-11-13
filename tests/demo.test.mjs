@@ -23,6 +23,9 @@ test('switching weeks preserves existing plans and linked actuals after reopenin
  assert.equal(next.budget.planned,0);
  assert.equal(next.budget.completed,0);
  assert.equal(next.activities[0].planId,monday);
+ assert.deepEqual(next.currentWeek.plan,original.plan);
+ assert.equal(next.currentWeek.budget.completed,20);
+ assert.equal(next.currentWeek.comparison[0].actualMinutes,20);
  await assert.rejects(demo.request('plan-week',{date:'2026-02-30'}),/有效日期/);
  const reopened=createDemoService(local);
  const prior=await reopened.request('plan-week',{date:monday});

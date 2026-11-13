@@ -29,7 +29,7 @@ export function importActivities(state,items,activityIds){
   activityIds?.push((existing??a).id);
  }return {added,duplicates};
 }
-export function comparison(state){return state.plan.map(p=>{
+export function comparison(state,plan=state.plan){return plan.map(p=>{
  const activities=state.activities.filter(a=>a.planId===p.id&&!a.kettlebellSessionId);
  const actualMinutes=activities.reduce((n,a)=>n+a.durationSeconds/60,0);
  const distanceKnown=activities.filter(a=>a.distanceMeters!==null);

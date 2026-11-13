@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-13 · Codex · codex/current-week-dashboard
+
+- **做了什麼**　完成 S2 的首頁週次修正。首頁依使用者時區讀取今天所在週的課表、實際訓練和完成度。課表頁保留目前瀏覽的週次。
+- **狀態**　基於 PR #9 合併提交 `a567c98`，整合分支供審查。
+- **測試**　96 項測試全數通過，靜態試用版建置成功。用 Chrome 在本機版及靜態試用版切到上週，確認首頁日期、摘要與圖表仍為本週。
+- **未完成／注意**　S1 等使用者設定本機 intervals.icu 憑證後實測，再處理同步結果及 S3。
+
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者決定**：intervals.icu 有算的就用 intervals.icu 的，沒有才用 AIAC 算法（`docs/ALGORITHMS.md` A2 已核准）。
 - **做了什麼**：`activityLoad` 第 0 步採用 `intervalsLoad`（來源 `intervals`、高可信度）；`performanceSeries` 新增 `anchors` 參數，`state.intervalsFitness`（來自 intervals.icu 健康紀錄的每日 `ctl`／`atl`，`mergeFitness` 寫入，最多保存 800 天）有值的日子直接採用，其餘由 AIAC 公式接續，每天標示來源；`loadSummary`、`performanceData`、目標的 CTL 都改用錨點。備份含 `intervalsFitness` 並驗證，舊備份為空。負荷卡註明體能與疲勞來自 intervals.icu；活動負荷來源名稱新增「intervals.icu」。
