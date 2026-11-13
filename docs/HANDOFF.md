@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：安裝 Anthropic 官方 skills（anthropics/skills，Apache 2.0）：`frontend-design`、`webapp-testing`、`theme-factory`、`canvas-design`、`brand-guidelines`。完整內容在 `.agents/skills/<name>/`（附 `SOURCE.md`），`.claude/skills/<name>/SKILL.md` 為轉介檔。安裝前已讀過全部文字檔與腳本：`webapp-testing/scripts/with_server.py` 只啟動指定伺服器並執行指令；PDF 無內嵌腳本；字體為 OFL TTF（3 個被 `file` 誤判，已確認字型表正常）。`AGENTS.md` skill 表已補上用途與限制。
+- **狀態**：已推分支，待合併（PR #2）。
+- **測試**：未改程式碼。
+- **未完成／注意**：`brand-guidelines` 是 Anthropic 品牌，不可用於 AIAC 介面。`frontend-design` 指出「暖米色底＋陶土色強調」是 AI 生成設計的常見樣式；目前改版雖用綠＋杏桃、非陶土色，之後調整時可參考它的原則讓 AIAC 更有辨識度。`canvas-design` 字體約 5.5 MB。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：依 `web-design-engineer` skill 做第一版視覺改版（Redesign · Overhaul，溫暖療癒／Headspace 風，使用者選定）。重寫 `public/style.css`：暖米杏底、深綠文字（保留品牌）、杏桃強調色（取自 logo 圓點）、大圓角、膠囊按鈕、柔和陰影與入場動畫（尊重 prefers-reduced-motion）、內文 16px、手機改底部分頁列。字體 Nunito（OFL）自帶於 `public/assets/fonts/`，不連 Google；server 白名單與 `scripts/build-demo.mjs` 已加入字體。HTML 只換側欄 SVG 圖示與英文標題／小標為中文；`app.js` 只改顯示樣板：課表每天的實際結果改為 SVG 進度環＋一行摘要、今天加標記、對話角色中文化。表單欄位名稱、id、data-* 選擇器、API 都未改。
 - **狀態**：已推分支，待使用者看效果後合併。
 - **測試**：node --test 34 項通過；build-demo 成功；Playwright 截圖桌面與手機四個分頁無跑版，試用版字體載入且無 console 錯誤。截圖：`docs/aiac-redesign-*.png`。
