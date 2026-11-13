@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-13 · Codex · codex/cloud-preview-and-training-details
+
+- **做了什麼**　S3 加入可獨立執行的 Postgres 存取與交易鎖。S4 備妥 Vercel 建置、單人 API 登入、私有 Blob 介面與每日排程。S5 整理 R1–R10 審閱單，S6 提供三種風格的對照規格。S7 讓活動頁按需讀取 intervals.icu 路線、曲線及分段，並把此功能拆成獨立前端模組。
+- **狀態**　Vercel 團隊可讀取，建立新專案回 403。實際部署、Neon 連線、私有 Blob 和平台排程待遠端驗收。
+- **測試**　101 項通過。已用 PostgreSQL 引擎驗證登入、保存與回復，另測交易鎖拒絕競爭請求。用真實 Garmin 跑步活動與手機寬度的 Chrome 驗證路線、曲線及分段。GitHub Pages 與雲端建置分開。
+- **未完成／注意**　雲端試用只開單人 API。4 MB 上傳上限及設定方式見 `CLOUD_PREVIEW.md`。新生理公式與教練風格待審。其餘前端按功能拆分。
+
 ### 2026-11-13 · Codex · codex/api-storage-boundary
 
 - **做了什麼**　完成 S1 真實同步，與來源核對活動負荷及每日體能、疲勞。S2 首頁週次修正在前一個提交。S3 第一段將 HTTP 請求與同步流程移到 `src/application.mjs`，由啟動端提供可非同步的狀態儲存、憑證庫及 FIT 存取；本機仍讀原有資料目錄。手動與背景 intervals.icu 同步共用保存及重試排程，金鑰遭拒後暫停自動同步。

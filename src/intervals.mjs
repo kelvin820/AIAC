@@ -27,7 +27,11 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
       error.code = 'INTERVALS_REJECTED';
       throw error;
     }
-    if (!response.ok) throw Error(`intervals.icu 回應 ${response.status}，稍後會再試。`);
+    if (!response.ok) {
+      const error=Error(`intervals.icu 回應 ${response.status}。`);
+      error.status=response.status;
+      throw error;
+    }
     return response.json();
   }
   // Check configuration before building the path, so a missing id gives the .env hint.
@@ -36,6 +40,9 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
     configured,
     activities:(oldest, newest) => get(`/athlete/${athlete()}/activities`, {oldest, newest}),
     wellness:(oldest, newest) => get(`/athlete/${athlete()}/wellness`, {oldest, newest}),
+    streams:id => get(`/activity/${encodeURIComponent(id)}/streams.json`, {types:'time,latlng,heartrate,velocity_smooth,altitude,cadence,watts'}),
+    intervals:id => get(`/activity/${encodeURIComponent(id)}/intervals`),
+    activitySource:async id => (await get(`/activity/${encodeURIComponent(id)}`,{fields:'source'})).source,
   };
 }
 

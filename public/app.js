@@ -1,4 +1,5 @@
 import {clearRouteMap, showRouteMap} from './route-map.js';
+import {intervalsActivityPanel,mountIntervalsActivityDetails} from './intervals-activity-ui.js';
 import {plannedSeconds,sessionTotals} from './kettlebell-core.js';
 import {circuitButton,findCircuit,findCircuitResult,mountKettlebell} from './kettlebell-ui.js';
 
@@ -208,7 +209,7 @@ $('.section-switcher').addEventListener('click',event=>{
  }
 });
 async function api(path,body){if(globalThis.AIAC_DEMO)return globalThis.AIAC_DEMO.request(path,body);const res=await fetch('/api/'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await res.json();if(!res.ok)throw Error(data.error||'無法連接伺服器');return data;}
-async function action(fn){if(pending)return;pending=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();}catch(e){notice(e.message);}finally{pending=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);globalThis.AIAC_DEMO?.decorate();}}
+async function action(fn){if(pending)return;pending=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();}catch(e){notice(e.message);}finally{pending=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);globalThis.AIAC_DEMO?.decorate();document.dispatchEvent(new Event('aiac-rendered'));}}
 function formValue(id){return Object.fromEntries(new FormData($(id)));}
 function planWeekDate(direction){
  if(direction==='today')return new Intl.DateTimeFormat('en-CA',{timeZone:state.context.timezone}).format(new Date());
@@ -911,7 +912,7 @@ function renderActivityCard(activity,days){
  const summary=state.summaries[activity.id];
  const circuit=activity.kettlebellSessionId&&state.kettlebell?.sessions.find(session=>session.id===activity.kettlebellSessionId);
  const hasSource=source=>activity.sources.some(entry=>entry.source===source);
- const source=hasSource('garmin-connect')?'Garmin Connect':hasSource('strava')?'Strava':hasSource('fit')?'FIT':activity.source;
+ const source=hasSource('garmin-connect')?'Garmin Connect':hasSource('strava')?'Strava':hasSource('fit')?'FIT':hasSource('intervals')?'intervals.icu':activity.source;
  const route=activity.route?.length>=2?`<details class="activity-route" data-route-activity="${id}" ${collapsedRouteIds.has(activity.id)?'':'open'}>
   <summary>GPS 軌跡地圖</summary><div data-activity-map></div></details>`:'';
  const fit=hasSource('fit')?(globalThis.AIAC_DEMO?renderLapFacts(summary.laps):`<details class="activity-route">
@@ -926,7 +927,7 @@ function renderActivityCard(activity,days){
    <div><dt>平均心率</dt><dd>${activity.avgHeartRate===null?'—':`${Math.round(activity.avgHeartRate)} <small>bpm</small>`}</dd></div>
    <div><dt>平均配速</dt><dd>${summary.pace===null?'—':`${formatPace(summary.pace)} <small>/ km</small>`}</dd></div>
   </dl>
-  ${loadBadge(activity.id)}${route}${fit}${strava}
+  ${loadBadge(activity.id)}${route}${fit}${strava}${intervalsActivityPanel(activity,globalThis.AIAC_DEMO)}
   ${circuit?`<details class="activity-assignment"><summary>對應課表 · ${esc(circuit.plan.date)} 全身壺鈴間歇</summary><p class="small">這筆裝置活動保留供查閱。這堂課的時間以 AIAC 計時為準。</p>${circuitButton(circuit.plan.date,'查看壺鈴結果')}</details>`:`<details class="activity-assignment">
    <summary>${activity.planId?`課表對應 · ${esc(activity.planId)}`:'對應課表與訓練目的'}</summary>
    <div class="fields">
@@ -948,6 +949,7 @@ function renderActivityCard(activity,days){
 
 function renderConnections(){
  renderGarminStatus();renderIntervalsStatus();
+ clearIntervalsDetails();
  for(const details of $('#activities').querySelectorAll('[data-route-activity]')){
   routeVisibility.unobserve(details);
   clearRouteMap(details.querySelector('[data-activity-map]'));
@@ -971,6 +973,7 @@ function renderConnections(){
  for(const details of $('#activities').querySelectorAll('[data-route-activity][open]'))routeVisibility.observe(details);
  $('#actual-form').elements.planId.innerHTML=state.plan.map(p=>`<option value="${p.id}" ${p.id===state.context.date?'selected':''}>${p.id} · ${p.type}</option>`).join('');
  globalThis.AIAC_DEMO?.decorate();
+ document.dispatchEvent(new Event('aiac-rendered'));
 }
 const manualCard=document.createElement('details');manualCard.id='manual-activity';manualCard.className='card manual-activity';manualCard.innerHTML=`<summary>手動登錄實際訓練</summary><form id="actual-form"><div class="fields"><label>對應課表<select name="planId"></select></label><label>實際訓練目的<select name="trainingType"><option>Unknown</option>${types.map(t=>`<option>${t}</option>`).join('')}</select></label><label>開始時間（依今日情境時區）<input name="time" type="time" value="07:00" required></label><label>實際分鐘<input name="minutes" type="number" min="0" max="1440" step="0.1" required></label><label>距離 km（選填）<input name="distanceKm" type="number" min="0" max="1000" step="0.01"></label><label>平均心率 bpm（選填）<input name="avgHeartRate" type="number" min="1" max="250"></label></div><label>實際感受／備註<textarea name="notes" rows="2"></textarea></label><button class="primary">保存實際結果</button> <button type="button" class="secondary" data-tab="activity-log">匯入 FIT 或管理活動 →</button></form>`;$('#plan').append(manualCard);
 function fitFeedback(text,kind,showActivity=false){$('#fit-feedback').hidden=false;$('#fit-feedback').dataset.status=kind;$('#fit-status').textContent=text;$('#fit-view').hidden=!showActivity;}
@@ -981,7 +984,8 @@ async function uploadFit(file){
  try{
   if(!state)throw Error('試用版尚未完成載入，請重新整理後再試。');
   if(!file.name.toLowerCase().endsWith('.fit'))throw Error('請選擇活動的 .fit 檔；如果是 ZIP，請先解壓縮。');
-  if(file.size===0||file.size>20*1024*1024)throw Error('檔案必須有內容且不超過 20 MB。');
+  const maxMB=globalThis.AIAC_CLOUD?4:20;
+  if(file.size===0||file.size>maxMB*1024*1024)throw Error(`檔案必須有內容且不超過 ${maxMB} MB。`);
   const previousIds=new Set(state.activities.map(a=>a.id));
   if(globalThis.AIAC_DEMO)state=await globalThis.AIAC_DEMO.importFit(file);
   else{const r=await fetch('/api/import-fit',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const data=await r.json();if(!r.ok)throw Error(data.error);state=data;}
@@ -1088,7 +1092,11 @@ document.addEventListener('click',event=>{
   notice('已對應當天課表，時間完成度已更新。');
  });
 });
-try{state=await api('state');render();}catch(e){notice('無法讀取本地資料：'+e.message);}
+const clearIntervalsDetails=mountIntervalsActivityDetails($('#activities'),{
+ fetchDetails:id=>api('intervals-activity-data',{id}),renderCharts:renderActivityCharts,
+ renderIntervals:intervals=>intervals.length?renderLapFacts(intervals,'intervals.icu 分段'):'<p class="small">此活動沒有分段資料。</p>'
+});
+try{state=await api('state');render();}catch(e){notice('無法讀取訓練資料。'+e.message);}
 
 const stravaDetailCache=new WeakMap();
 $('#activities').addEventListener('click', event=>{

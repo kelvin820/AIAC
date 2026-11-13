@@ -8,11 +8,11 @@
 |---|---|---|---|
 | S1 | 已驗證本機 intervals.icu 真實同步、活動負荷與每日體能／疲勞 | 使用者＋Codex | 本機 `.env` 填金鑰 |
 | S2 | 已修正首頁「本週」，固定以今天所在週計算 | Codex | S1 |
-| S3 | 已拆出共用請求處理與本機儲存介面。下一段接 Postgres、處理跨程序寫入及環境憑證 | 一個 agent 獨力完成（避免兩邊同時改） | S2 |
-| S4 | 部署 Vercel：Neon Postgres、Blob、排程同步、網站保護 | Claude 或 Codex＋使用者開帳號 | S3 |
-| S5 | 演算法核准：審 `docs/ALGORITHMS.md`；研究 R1–R10 候選給使用者選 | 使用者審、agent 研究 | 可與 S3 並行 |
-| S6 | 定義「多種 AI 教練」：教練風格、語氣、適用對象、輸出格式 | 使用者主導，agent 寫成規格 | 可與 S3 並行 |
-| S7 | 從 intervals.icu 匯入 GPS 路線與分圈；`app.js` 拆模組 | agent | S4 之後 |
+| S3 | 已接上 Postgres 介面、跨程序寫入鎖與雲端環境憑證。已用本機 PostgreSQL 引擎驗證 | Codex | S2 |
+| S4 | 私有試用版建置、資料 API 登入、Blob 與每日排程已備妥。部署及託管服務的驗收見 [雲端試用](CLOUD_PREVIEW.md) | Codex | S3 |
+| S5 | [R1–R10 審閱單](ALGORITHM_REVIEW.md)已整理研究及試用案例。公式依原規則維護 | 使用者審、Codex 研究 | 可與 S3 並行 |
+| S6 | [三種教練風格規格](COACH_STYLES.md)已附對照案例 | 使用者審、Codex 寫規格 | 可與 S3 並行 |
+| S7 | 活動詳情可按需讀取 intervals.icu GPS、曲線與分段，前端獨立成模組。其餘前端拆分按功能逐步進行 | Codex | 可在本機試用 |
 | S8 | 收費營運前才做：Garmin 官方 API 申請、多人帳號、金流 | 之後再議 | 試用結論 |
 
 ## 使用者可以先準備的事

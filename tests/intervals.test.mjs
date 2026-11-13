@@ -85,6 +85,10 @@ test('sync imports, deduplicates against existing activities and fills power and
   // A second pass imports nothing new.
   const again = await syncIntervals(s, client, {today:TODAY});
   assert.deepEqual([again.added, again.duplicates], [0, 2]);
+  const changed = fakeFetch({'/activities':[200,[run({distance:null,moving_time:3100})]], '/wellness':[200,[]]});
+  const changedClient = createIntervals({apiKey:'k',athleteId:'i1',fetchImpl:changed.fn});
+  const corrected = await syncIntervals(s,changedClient,{today:TODAY});
+  assert.deepEqual([corrected.added,corrected.duplicates],[0,1]);
   assert.match(calls.at(-1).url, /oldest=2026-11-11/);
   await syncIntervals(s, client, {today:TODAY, backfillDays:365});
   assert.match(calls.at(-1).url, /oldest=2025-11-13/);

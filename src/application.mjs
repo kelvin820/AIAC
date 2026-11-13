@@ -8,6 +8,7 @@ import {createMcp} from './mcp.mjs';
 import {createStrava} from './strava.mjs';
 import {createGarmin} from './garmin.mjs';
 import {createIntervals,syncIntervals} from './intervals.mjs';
+import {readIntervalsDetails} from './intervals-details.mjs';
 import {fitActivityData} from './fit-core.mjs';
 import {syncStrava,syncStravaIfDue} from './strava-sync.mjs';
 import {backupLimit,exportBackup,restoreBackup} from './backup.mjs';
@@ -21,7 +22,7 @@ import {wellnessAction,wellnessView} from './wellness.mjs';
 import {updateKettlebell} from '../public/kettlebell-core.js';
 
 // store.get/save may perform I/O. The vault and FIT storage are supplied by the entry point.
-export function createApplication({origin, allowedOrigins = [origin], store, vault, fitStore, env = process.env}) {
+export function createApplication({origin, allowedOrigins = [origin], store, vault, fitStore, env = process.env, fitLimit = 20*1024*1024, backupMax = backupLimit}) {
  const base = new URL(origin);
  const trustedOrigins = new Set(allowedOrigins.map(value => new URL(value).origin));
  const garmin = createGarmin(env.GARMIN_PERSONAL_API_KEY);
@@ -88,9 +89,9 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
    if(req.headers['content-type']!==(isFit?'application/octet-stream':'application/json'))return send(res,415,{error:'請使用指定的檔案或 JSON 格式'});
    if(busy)return send(res,409,{error:'另一個操作進行中，請稍後重試'});busy=true;
    try{
-    const b=isFit?{}:await body(req,req.url==='/api/backup-restore'?backupLimit:undefined);let s=await store.get();
+    const b=isFit?{}:await body(req,req.url==='/api/backup-restore'?backupMax:undefined);let s=await store.get();
     if(isFit){
-     const buffer=await raw(req,20*1024*1024);const items=parseFit(buffer,s.context.timezone);const activityIds=[];const imported=importActivities(s,items,activityIds);await fitStore.save(items[0].fingerprint.split(':')[0],buffer);await store.save(s);return send(res,200,{...view(s),imported,activityIds});
+     const buffer=await raw(req,fitLimit);const items=parseFit(buffer,s.context.timezone);const activityIds=[];const imported=importActivities(s,items,activityIds);await fitStore.save(items[0].fingerprint.split(':')[0],buffer);await store.save(s);return send(res,200,{...view(s),imported,activityIds});
     }else if(req.url==='/api/connections'){
      const mode=b.mode;if(!['mock','byok','managed'].includes(mode))throw Error('分析模式不正確');if(mode==='managed')throw Error('AIAC 付費代管尚未開通，不會使用開發者共享 Key');
      const dailyLimit=Number(b.dailyLimit),maxOutputTokens=Number(b.maxOutputTokens);
@@ -119,6 +120,15 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
     return send(res,200,{...view(s),imported});
     }else if(req.url==='/api/garmin-sync'){
      const imported=await syncGarmin(s);return send(res,200,{...view(s),imported});
+    }else if(req.url==='/api/intervals-activity-data'){
+     const activity=s.activities.find(item=>item.id===b.id);
+     const source=activity?.sources.find(item=>item.source==='intervals');
+     if(!source)throw Error('找不到這筆 intervals.icu 活動。');
+     if(activity.sources.some(item=>item.source.startsWith('strava')))throw Error('這筆活動含 Strava 來源，請使用原有 Strava 或 FIT 詳情。');
+     const provider=await intervals.activitySource(source.sourceId);
+     if(!provider||String(provider).toUpperCase().includes('STRAVA'))throw Error('此活動的來源無法透過 intervals.icu 讀取路線與分段，請匯入原始 FIT。');
+     const detail=await readIntervalsDetails(intervals,source.sourceId);
+     return send(res,200,detail);
     }else if(req.url==='/api/fit-activity-data'){
      const {bytes,index}=await readActivityFit(s.activities.find(a=>a.id===b.id));
      return send(res,200,fitActivityData(bytes,index));
