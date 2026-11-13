@@ -260,9 +260,68 @@ function renderPerformance(){
  $('#bests').innerHTML=bestsPanel(P.bests);
 }
 document.querySelector('.period-switch').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b||!state)return;perfPeriod=b.dataset.period==='all'?'all':Number(b.dataset.period);renderPerformance();});
+let calMonth=null,calSelected=null,calWorkout=null;
+const fmtMin=m=>m>=60?`${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}`:`${Math.round(m)}′`;
+function planDayMap(){return new Map([...Object.values(state.planHistory??{}).flat(),...state.plan].map(d=>[d.id,d]));}
+function monthStart(ym){return ym+'-01';}
+function shiftMonth(ym,n){const [y,m]=ym.split('-').map(Number),d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,7);}
+function renderCalendar(){
+ if(!state)return;calMonth??=state.context.date.slice(0,7);
+ const plans=planDayMap(),perf=new Map((state.performance?.activities??[]).map(a=>[a.id,a])),byDate=new Map();
+ for(const a of state.activities)(byDate.get(a.date)??byDate.set(a.date,[]).get(a.date)).push(a);
+ const first=monthStart(calMonth),firstDow=(new Date(first+'T12:00:00Z').getUTCDay()+6)%7;let cursor=addDays(first,-firstDow);
+ const [y,m]=calMonth.split('-');$('#cal-title').textContent=`${y} 年 ${Number(m)} 月`;
+ let html=['一','二','三','四','五','六','日','週合計'].map(d=>`<div class="cal-head" role="columnheader">${d}</div>`).join('');
+ let monthMin=0,monthPlan=0,monthCount=0;
+ for(let w=0;w<6;w++){
+  if(w>0&&cursor.slice(0,7)!==calMonth)break;
+  let weekMin=0,weekPlan=0,weekLoad=0;
+  for(let d=0;d<7;d++,cursor=addDays(cursor,1)){
+   const date=cursor,inMonth=date.slice(0,7)===calMonth,plan=plans.get(date),acts=byDate.get(date)??[];
+   const mins=acts.reduce((n,a)=>n+a.durationSeconds/60,0),load=acts.reduce((n,a)=>n+(state.load?.perActivity?.[a.id]?.score??0),0);
+   weekMin+=mins;weekLoad+=load;weekPlan+=plan?.minutes??0;if(inMonth){monthMin+=mins;monthPlan+=plan?.minutes??0;monthCount+=acts.length;}
+   const planChip=plan&&plan.type!=='Rest'&&plan.minutes?`<span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span>`:plan?.type==='Rest'?'<span class="cal-rest">休息</span>':'';
+   const chips=acts.slice(0,2).map(a=>{const t=perf.get(a.id)?.type??'Unknown';return `<span class="cal-act" data-type="${esc(t)}">${fmtMin(a.durationSeconds/60)}${a.distanceMeters?` · ${(a.distanceMeters/1000).toFixed(1)}k`:''}</span>`;}).join('')+(acts.length>2?`<span class="cal-more">+${acts.length-2}</span>`:'');
+   html+=`<button type="button" class="cal-cell${inMonth?'':' out'}${date===state.context.date?' today':''}${date===calSelected?' selected':''}" data-cal-date="${date}" aria-label="${date}${acts.length?`，${acts.length} 筆活動`:''}"><span class="cal-num">${Number(date.slice(8))}</span>${planChip}${chips}${load?`<span class="cal-load">${Math.round(load)}</span>`:''}</button>`;
+  }
+  html+=`<div class="cal-week"><strong>${fmtMin(weekMin)}</strong><span>計畫 ${fmtMin(weekPlan)}</span><span>負荷 ${Math.round(weekLoad)}</span></div>`;
+ }
+ $('#cal-grid').innerHTML=html;
+ $('#cal-summary').textContent=`本月 ${monthCount} 筆活動 · 實際 ${fmtMin(monthMin)} · 計畫 ${fmtMin(monthPlan)}`;
+ renderCalDay();renderWorkoutDetail();
+}
+function renderCalDay(){
+ const panel=$('#cal-day');if(!calSelected){panel.hidden=true;return;}
+ const plan=planDayMap().get(calSelected),acts=state.activities.filter(a=>a.date===calSelected);
+ panel.hidden=false;
+ panel.innerHTML=`<div class="card-title"><h2>${calSelected} 週${'一二三四五六日'[(new Date(calSelected+'T12:00:00Z').getUTCDay()+6)%7]}</h2><button type="button" class="secondary" data-cal-close>關閉</button></div><div class="cal-day-grid"><div><h3>計畫</h3>${plan?`<p class="cal-plan-line" data-type="${esc(plan.type)}"><strong>${esc(typeNames[plan.type]||plan.type)}</strong> ${plan.minutes} 分鐘</p>`:'<p class="muted">這天不在任何已建立的週課表內。</p>'}</div><div><h3>實際活動</h3>${acts.length?acts.map(a=>{const l=state.load?.perActivity?.[a.id];return `<button type="button" class="cal-act-row" data-workout="${esc(a.id)}"><span><strong>${esc(a.name)}</strong><small>${fmtMin(a.durationSeconds/60)}${a.distanceMeters?` · ${(a.distanceMeters/1000).toFixed(2)} km`:''}${a.avgHeartRate?` · ${a.avgHeartRate} bpm`:''}</small></span><em>${l?`負荷 ${l.score}`:''}</em></button>`;}).join(''):'<p class="muted">沒有活動紀錄。</p>'}</div></div>`;
+}
+function renderWorkoutDetail(){
+ const panel=$('#workout-detail'),a=calWorkout&&state.activities.find(x=>x.id===calWorkout);
+ if(!a){panel.hidden=true;return;}
+ const sum=state.summaries[a.id],l=state.load?.perActivity?.[a.id],p=state.performance?.activities.find(x=>x.id===a.id),zone=p?.zone&&state.performance.zones.find(z=>z.key===p.zone),plan=a.planId&&planDayMap().get(a.planId);
+ const metric=(label,value,sub='')=>`<div class="wd-metric"><span>${label}</span><strong>${value}</strong>${sub?`<em>${sub}</em>`:''}</div>`;
+ const ratio=plan&&plan.minutes?Math.round(a.durationSeconds/60/plan.minutes*100):null;
+ panel.hidden=false;
+ panel.innerHTML=`<div class="card-title"><h2>${esc(a.name)}<small class="wd-sub">${esc(a.date)} · ${esc(a.sources.map(x=>x.source).join(' / '))}</small></h2><button type="button" class="secondary" data-workout-close>關閉</button></div>
+<div class="wd-metrics">${metric('時間',fmtMin(a.durationSeconds/60))}${metric('距離',a.distanceMeters?`${(a.distanceMeters/1000).toFixed(2)}<small>km</small>`:'—')}${metric('平均配速',sum.pace?`${formatPace(sum.pace)}<small>/km</small>`:'—')}${metric('平均心率',a.avgHeartRate?`${a.avgHeartRate}<small>bpm</small>`:'—',zone?esc(zone.label):'')}${metric('訓練負荷',l?l.score:'—',l?`${esc(loadSourceNames[l.source]||l.source)} · ${esc(confidenceNames[l.confidence])}`:'')}</div>
+${l?`<p class="small">${esc(l.method)}</p>`:''}
+<div class="wd-compare"><h3>計畫與實際</h3>${plan?`<div class="wd-compare-row"><span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span><span>→</span><span class="cal-act" data-type="${esc(p?.type??'Unknown')}">${esc(typeNames[p?.type]||'目的待確認')} ${fmtMin(a.durationSeconds/60)}</span>${ratio===null?'':`<strong>${ratio}%</strong>`}</div><p class="small">${a.trainingType==='Unknown'?'訓練目的尚未確認，請在「資料」分頁標記。':(a.trainingType===plan.type?'訓練目的與計畫相符（使用者標記）。':'訓練目的與計畫不同（使用者標記）。')}時間相同不代表訓練刺激等效。</p>`:'<p class="muted">尚未對應課表。可在「資料」分頁選擇對應日期。</p>'}</div>
+${sum.laps?.length?renderLapFacts(sum.laps):'<p class="small">沒有分圈資料。匯入含分圈的 FIT 檔後會顯示每圈配速與心率。</p>'}
+<p class="small">${esc(sum.uncertainties.join(' · '))}</p>
+<button type="button" class="text-button" data-tab="connections" data-goto-activity="${esc(a.id)}">在資料分頁查看地圖、曲線與對應設定 →</button>`;
+}
+document.querySelector('#calendar').addEventListener('click',e=>{
+ const m=e.target.closest('[data-cal-month]');if(m){calMonth=m.dataset.calMonth==='0'?state.context.date.slice(0,7):shiftMonth(calMonth,Number(m.dataset.calMonth));renderCalendar();return;}
+ const c=e.target.closest('[data-cal-date]');if(c){calSelected=c.dataset.calDate===calSelected?null:c.dataset.calDate;calWorkout=null;renderCalendar();if(calSelected)$('#cal-day').scrollIntoView?.({block:'nearest'});return;}
+ const w=e.target.closest('[data-workout]');if(w){calWorkout=w.dataset.workout;renderWorkoutDetail();return;}
+ if(e.target.closest('[data-cal-close]')){calSelected=null;calWorkout=null;renderCalendar();return;}
+ if(e.target.closest('[data-workout-close]')){calWorkout=null;renderWorkoutDetail();return;}
+ const g=e.target.closest('[data-goto-activity]');if(g)requestAnimationFrame(()=>document.querySelector(`[data-activity-id="${CSS.escape(g.dataset.gotoActivity)}"]`)?.scrollIntoView({block:'start'}));
+});
 function render(){
  $('#mode').textContent=state.mode==='live'?'Live · 外部 LLM':'Mock · 流程示範';fill('#profile-form',state.profile);fill('#context-form',state.context);
- const b=state.budget;renderKpis(b);renderLoad();renderPerformance();{const a=state.athlete||{};fill('#athlete-form',{maxHeartRate:a.maxHeartRate??'',restingHeartRate:a.restingHeartRate??'',lthr:a.lthr??'',thresholdPace:a.thresholdPaceSecPerKm?formatPace(a.thresholdPaceSecPerKm):'',ftp:a.ftp??'',weightKg:a.weightKg??''});}$('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${b.planned} 分鐘</span><span>預計品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。以活動實際時間加總；課表完成度與訓練目的另行比較。</p>`;
+ const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();{const a=state.athlete||{};fill('#athlete-form',{maxHeartRate:a.maxHeartRate??'',restingHeartRate:a.restingHeartRate??'',lthr:a.lthr??'',thresholdPace:a.thresholdPaceSecPerKm?formatPace(a.thresholdPaceSecPerKm):'',ftp:a.ftp??'',weightKg:a.weightKg??''});}$('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${b.planned} 分鐘</span><span>預計品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。以活動實際時間加總；課表完成度與訓練目的另行比較。</p>`;
  const r=state.recommendations.at(-1);$('#recommendation').innerHTML=r?`<div class="tag">${r.mode==='mock'?'MOCK · 非真實 AI 建議':esc(r.model)} · ${esc(r.at.slice(0,10))}</div><h2>今天，我們可以這樣練。</h2><p>${esc(r.text)}</p><p><strong>為什麼</strong><br>${esc(r.why)}</p><p><strong>Plan B</strong><br>${esc(r.planB)}</p><p class="small">缺失與不確定性：${r.uncertainties.map(esc).join(' · ')}</p>${planDiff(r)}`:'<div class="tag">下一步</div><h2>先告訴我，今天的你。</h2><p class="muted">填入今天的情境，產生第一份 Morning Coaching。<br>不用有完美的數據，從你知道的開始。</p>';
  $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'你':'AIAC 教練'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC 教練</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
  const latestStrava=state.activities.filter(activity=>activity.sources.some(source=>source.source==='strava')).sort((a,b)=>b.startedAt.localeCompare(a.startedAt))[0];

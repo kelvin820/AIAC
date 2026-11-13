@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 3 期。新增「活動行事曆」分頁（側欄第 3 個，珊瑚色）：月曆（週一起始，8 欄含週合計：實際時間、計畫時間、負荷）、計畫課虛線框與實際活動實心色塊依訓練類型上色、當日負荷、上／下月與本月切換；點日期展開當天計畫與活動；點活動開啟單次訓練詳情（5 個數值、負荷計算方式、計畫與實際對照與時間完成度、分圈表、前往資料分頁）。全部前端組合現有 state（`plan`、`planHistory`、`activities`、`load.perActivity`、`performance.activities`），無新 API。手機版月曆縮成色條。截圖 `docs/aiac-calendar.png`。
+- **狀態**：已推分支，待合併（PR #2）。
+- **測試**：node --test 46 項通過（本期無新增純函式）；Playwright 操作本機版與試用版行事曆（點日期、點活動、切月）無 console 錯誤。
+- **未完成／注意**：月曆邏輯在 `public/app.js`，尚無單元測試；若要測試可抽到 `src/` 並在 server 白名單提供。地圖沒有搬進詳情面板（Leaflet 初始化綁在資料分頁）。下一步第 4 期 Goals。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成借用計畫第 2 期 Performance。新增 `src/performance.mjs`（純函式）：`performanceData` 回傳完整 PMC、每筆活動摘要（週、分鐘、距離、負荷、可信度、類型、心率區間）、區間界線、個人最佳；`HR_ZONES`（LTHR 五區）、`thresholdHeartRate`（無 LTHR 用最大心率 90% 並標示估算）、`personalBests`（最快 1 km 分圈、5K／10K 以上最佳均速、最長距離／時間，只用量測值）。`view()` 新增 `performance`。前端新增「表現分析」分頁（側欄第 3 個，黃色）：期間切換（前端過濾，不重打 API）、4 個期間 KPI、PMC 大圖（整數刻度、每日負荷長條、原生 tooltip，手機可橫向捲動）、每週訓練量（依類型堆疊，未標類型時用對應課表類型）、強度分布、個人最佳。截圖 `docs/aiac-performance.png`。
 - **狀態**：已推分支，待合併（PR #2）。
 - **測試**：node --test 46 項通過（新增 `tests/performance.test.mjs` 3 項）；build-demo 成功，試用版表現頁切換期間無 console 錯誤。

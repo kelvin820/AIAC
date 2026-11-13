@@ -30,7 +30,7 @@ aside{width:92px;position:fixed;inset:0 auto 0 0;background:var(--rail);padding:
 nav{display:grid;gap:4px;margin-top:28px;width:100%}
 nav button{border:0;background:none;color:var(--muted);padding:10px 4px;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;gap:6px;font-size:0;transition:color .2s var(--ease),background .2s var(--ease)}
 nav button svg{width:24px;height:24px;flex:none;stroke:var(--ic,currentColor);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--ic) 35%,transparent))}
-nav button[data-tab=today]{--ic:#FFB547}nav button[data-tab=plan]{--ic:#2FE39A}nav button[data-tab=profile]{--ic:#38C8FF}nav button[data-tab=journal]{--ic:#B27CFF}nav button[data-tab=connections]{--ic:#5B9DFF}nav button[data-tab=performance]{--ic:#FFD23F}
+nav button[data-tab=today]{--ic:#FFB547}nav button[data-tab=plan]{--ic:#2FE39A}nav button[data-tab=profile]{--ic:#38C8FF}nav button[data-tab=journal]{--ic:#B27CFF}nav button[data-tab=connections]{--ic:#5B9DFF}nav button[data-tab=performance]{--ic:#FFD23F}nav button[data-tab=calendar]{--ic:#FF6B4A}
 nav button .label::after{content:attr(data-short);font-size:11px;font-weight:600;letter-spacing:.2px}
 nav button:hover{color:var(--text);background:var(--panel)}
 nav .active{color:var(--text);background:color-mix(in srgb,var(--ic) 16%,transparent);box-shadow:inset 3px 0 0 var(--ic)}
@@ -252,7 +252,7 @@ body.demo .llm-disabled{opacity:.6}
  aside{position:static;width:auto;padding:14px 16px 6px;display:block;border-right:0;background:transparent}
  .brand{font-size:28px}
  .aside-bottom{display:none}
- nav{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;display:grid;grid-template-columns:repeat(6,1fr);gap:0;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--rail);border-top:1px solid var(--line)}
+ nav{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;display:grid;grid-template-columns:repeat(7,1fr);gap:0;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--rail);border-top:1px solid var(--line)}
  nav button{padding:6px 2px;min-height:52px;justify-content:center}
  nav .active{box-shadow:inset 0 2px 0 var(--ic)}
  main{margin-left:0;padding:0 14px 96px}
@@ -331,3 +331,57 @@ body.demo .llm-disabled{opacity:.6}
 @media(max-width:760px){.zone-row{grid-template-columns:110px 1fr 70px}.period-switch{display:flex;overflow-x:auto}}
 .chart-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 @media(max-width:760px){.chart-scroll .pmc{min-width:680px}}
+
+/* ---------- Activity calendar & workout detail ---------- */
+.cal-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.cal-toolbar .period-switch{margin:0}
+.cal-toolbar h2{margin:0;font-size:20px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 110px;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
+.cal-head{background:var(--panel);padding:8px 10px;font-size:12px;color:var(--muted);font-weight:700}
+.cal-cell{all:unset;box-sizing:border-box;background:var(--panel);min-height:108px;padding:8px;display:flex;flex-direction:column;gap:4px;cursor:pointer;position:relative;transition:background .15s var(--ease)}
+.cal-cell:hover{background:#1A2320}
+.cal-cell:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cal-cell.out{background:#121816;opacity:.55}
+.cal-cell.today .cal-num{background:var(--accent);color:#1B1206;border-radius:var(--pill);padding:0 7px}
+.cal-cell.selected{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-num{font-size:13px;font-weight:700;color:var(--text-2);align-self:flex-start}
+.cal-plan,.cal-act{display:block;font-size:11.5px;font-weight:700;padding:3px 6px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.cal-plan{border:1px dashed var(--type);color:var(--type);background:transparent}
+.cal-act{background:var(--type);color:#0E1312}
+.cal-rest{font-size:11px;color:var(--muted)}
+.cal-more{font-size:11px;color:var(--text-2)}
+.cal-load{position:absolute;top:8px;right:8px;font-size:11px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+.cal-week{background:var(--panel-2);padding:10px;display:flex;flex-direction:column;justify-content:center;gap:2px;font-size:11px;color:var(--muted)}
+.cal-week strong{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums}
+.cal-day h3,.wd-compare h3{font-size:13px;color:var(--muted);margin:0 0 8px;font-weight:700}
+.cal-day-grid{display:grid;grid-template-columns:1fr 2fr;gap:20px}
+.cal-plan-line{border-left:3px solid var(--type);padding-left:10px;margin:0}
+.cal-act-row{all:unset;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px 12px;margin-bottom:6px;border:1px solid var(--line-2);border-radius:var(--r-s);cursor:pointer}
+.cal-act-row:hover{border-color:var(--accent);background:var(--panel-2)}
+.cal-act-row:focus-visible{outline:2px solid var(--accent)}
+.cal-act-row strong{display:block;font-size:14px}
+.cal-act-row small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.cal-act-row em{font-style:normal;font-size:13px;font-weight:700;color:var(--accent)}
+.workout-detail{border-top:2px solid var(--accent)}
+.wd-sub{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:4px}
+.wd-metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.wd-metric{background:var(--panel-2);padding:12px 14px}
+.wd-metric span{display:block;font-size:12px;color:var(--muted);font-weight:600}
+.wd-metric strong{display:block;font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;font-stretch:92%}
+.wd-metric strong small{font-size:12px;color:var(--muted);margin-left:3px;font-weight:500}
+.wd-metric em{display:block;font-style:normal;font-size:11.5px;color:var(--text-2);margin-top:2px}
+.wd-compare{margin:16px 0}
+.wd-compare-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.wd-compare-row strong{font-size:18px;color:var(--accent)}
+@media(max-width:1180px){.wd-metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){
+ .cal-grid{grid-template-columns:repeat(7,minmax(0,1fr))}
+ .cal-head:nth-child(8),.cal-week{display:none}
+ .cal-cell{min-height:64px;padding:4px;gap:2px}
+ .cal-plan,.cal-act{font-size:0;padding:0;height:6px;border-radius:3px}
+ .cal-plan{border-width:1px}
+ .cal-rest,.cal-more,.cal-load{display:none}
+ .cal-num{font-size:12px}
+ .cal-day-grid{grid-template-columns:1fr}
+ .wd-metrics{grid-template-columns:1fr 1fr}
+}
