@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createIntervals, mapActivity, mapWellness, mergeWellness, syncRange, syncIntervals} from '../src/intervals.mjs';
+import {createIntervals, mapActivity, mapWellness, mergeWellness, mergeFitness, syncRange, syncIntervals, MAX_FITNESS_DAYS} from '../src/intervals.mjs';
+import {activityLoad, performanceSeries, loadSummary, defaultAthlete} from '../src/training-load.mjs';
 import {initialState} from '../src/initial-state.mjs';
 import {normalizeActivity} from '../src/activity-core.mjs';
 
@@ -79,7 +80,7 @@ test('sync imports, deduplicates against existing activities and fills power and
   assert.equal(s.activities[0].normalizedPower, 240);
   assert.equal(s.activities[0].intervalsLoad, 62);
   assert.equal(s.connections.intervals.lastSyncDate, TODAY);
-  assert.deepEqual(s.connections.intervals.lastResult, {activities:1, duplicates:1, invalid:1, wellness:1});
+  assert.deepEqual(s.connections.intervals.lastResult, {activities:1, duplicates:1, invalid:1, wellness:1, fitnessDays:0});
   assert.match(calls[0].url, /oldest=2026-08-15/);
   // A second pass imports nothing new.
   const again = await syncIntervals(s, client, {today:TODAY});
@@ -96,4 +97,45 @@ test('failed sync keeps the error on the status and flags a rejected key', async
   assert.equal(s.connections.intervals.rejected, true);
   const down = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:async () => { throw Error('fetch failed'); }});
   await assert.rejects(syncIntervals(s, down, {today:TODAY}), /暫時無法連到/);
+});
+
+test('intervals.icu load is used when present, otherwise AIAC calculates', () => {
+  const athlete = {...defaultAthlete(), maxHeartRate:190, restingHeartRate:50};
+  const a = {date:'2026-11-13', durationSeconds:3600, avgHeartRate:150, sport:'running'};
+  assert.deepEqual([activityLoad({...a, intervalsLoad:72}, athlete).score, activityLoad({...a, intervalsLoad:72}, athlete).source, activityLoad({...a, intervalsLoad:72}, athlete).confidence], [72, 'intervals', 'high']);
+  assert.equal(activityLoad(a, athlete).source, 'heart-rate');
+});
+
+test('intervals.icu fitness and fatigue are used on their days; AIAC carries on between them', () => {
+  const act = (date, intervalsLoad) => ({id:date, date, durationSeconds:3600, intervalsLoad, sport:'running'});
+  const anchors = {'2026-11-10':{ctl:40, atl:50}};
+  const series = performanceSeries([act('2026-11-11', 70)], defaultAthlete(), '2026-11-12', anchors);
+  assert.deepEqual(series.map(d => [d.date, d.source]), [['2026-11-10', 'intervals'], ['2026-11-11', 'aiac'], ['2026-11-12', 'aiac']]);
+  assert.deepEqual([series[0].ctl, series[0].atl], [40, 50]);
+  assert.equal(series[1].ctl, 40 + (70 - 40) / 42);
+  assert.equal(series[1].atl, 50 + (70 - 50) / 7);
+  const state = {context:{date:'2026-11-12'}, athlete:defaultAthlete(), activities:[act('2026-11-11', 70)], intervalsFitness:{...anchors, '2026-11-12':{ctl:41, atl:52}}};
+  const summary = loadSummary(state);
+  assert.deepEqual([summary.today.ctl, summary.today.atl, summary.today.tsb, summary.today.source], [41, 52, -11, 'intervals']);
+});
+
+test('fitness from wellness rows is validated, ignores future days and keeps a bounded history', () => {
+  const s = {};
+  assert.equal(mergeFitness(s, [wellness({ctl:45.27, atl:60.04}), wellness({id:'2026-11-14', ctl:1, atl:1}), wellness({id:'2026-11-12', ctl:'x', atl:2}), wellness({id:'2026-11-11', ctl:-1, atl:2})], TODAY), 1);
+  assert.deepEqual(s.intervalsFitness, {'2026-11-13':{ctl:45.3, atl:60}});
+  const many = Array.from({length:MAX_FITNESS_DAYS + 5}, (_, i) => ({id:new Date(Date.UTC(2023, 0, 1 + i)).toISOString().slice(0, 10), ctl:1, atl:1}));
+  mergeFitness(s, many, '2099-01-01');
+  assert.equal(Object.keys(s.intervalsFitness).length, MAX_FITNESS_DAYS);
+});
+
+test('intervals.icu fitness survives backup and bad values are refused', async () => {
+  const {exportBackup, restoreBackup} = await import('../src/backup.mjs');
+  const s = initialState();
+  s.intervalsFitness = {'2026-11-12':{ctl:44, atl:51}};
+  const backup = JSON.parse(JSON.stringify(exportBackup(s)));
+  assert.deepEqual(restoreBackup(initialState(), backup).intervalsFitness, {'2026-11-12':{ctl:44, atl:51}});
+  backup.data.intervalsFitness['2026-11-13'] = {ctl:'x', atl:1};
+  assert.throws(() => restoreBackup(initialState(), backup), /intervals\.icu 體能/);
+  delete backup.data.intervalsFitness;
+  assert.deepEqual(restoreBackup(initialState(), backup).intervalsFitness, {});
 });

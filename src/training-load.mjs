@@ -45,6 +45,9 @@ export function activityLoad(activity, athlete = defaultAthlete()) {
   const hr = positive(activity.avgHeartRate) ? activity.avgHeartRate : null;
   const {maxHeartRate:max, restingHeartRate:rest, lthr, thresholdPaceSecPerKm:threshold, ftp} = athlete;
 
+  // intervals.icu computes load from the full recording; when it exists it is used as is.
+  if (positive(activity.intervalsLoad)) return result(activity.intervalsLoad, 'intervals', 'high', 'intervals.icu 的訓練負荷（依完整紀錄計算）');
+
   const np = activity.normalizedPower ?? activity.stravaMetrics?.weightedWatts;
   if (positive(np) && positive(ftp)) {
     const intensity = np / ftp;
@@ -90,18 +93,23 @@ export function dailyLoads(activities, athlete) {
 
 // Day-by-day exponentially weighted fitness (CTL) and fatigue (ATL); form TSB = CTL - ATL.
 // Starts at the first activity with zero load, so values are low until about six weeks of history exist.
-export function performanceSeries(activities, athlete, endDate) {
+// Day-by-day exponentially weighted fitness (CTL) and fatigue (ATL); form TSB = CTL - ATL.
+// `anchors` maps a date to intervals.icu's own {ctl, atl}: on those days its values are used as is,
+// and AIAC's formula carries on from them for the days in between. Without anchors the series starts
+// at the first activity with zero load, so values are low until about six weeks of history exist.
+export function performanceSeries(activities, athlete, endDate, anchors = {}) {
   const loads = dailyLoads(activities, athlete);
-  const dates = [...loads.keys()].filter(date => date <= endDate).sort();
+  const dates = [...loads.keys(), ...Object.keys(anchors ?? {})].filter(date => date <= endDate).sort();
   if (!dates.length) return [];
   const series = [];
   let ctl = 0, atl = 0;
   for (let date = dates[0]; date <= endDate; date = nextDay(date)) {
     const load = loads.get(date) ?? 0;
     const tsbBefore = ctl - atl;
-    ctl += (load - ctl) / CTL_DAYS;
-    atl += (load - atl) / ATL_DAYS;
-    series.push({date, load, ctl, atl, tsb:ctl - atl, formBefore:tsbBefore});
+    const anchor = anchors?.[date];
+    if (anchor) { ctl = anchor.ctl; atl = anchor.atl; }
+    else { ctl += (load - ctl) / CTL_DAYS; atl += (load - atl) / ATL_DAYS; }
+    series.push({date, load, ctl, atl, tsb:ctl - atl, formBefore:tsbBefore, source:anchor ? 'intervals' : 'aiac'});
   }
   return series;
 }
@@ -129,7 +137,7 @@ export function loadActivities(state) {
 export function loadSummary(state, today = state.context.date, days = 90) {
   const athlete = state.athlete ?? defaultAthlete();
   const records=loadActivities(state);
-  const series = performanceSeries(records, athlete, today);
+  const series = performanceSeries(records, athlete, today, state.intervalsFitness);
   const last = series.at(-1) ?? null;
   const weekAgo = series.at(-8) ?? null;
   const confidence = {high:0, medium:0, low:0};
@@ -144,7 +152,7 @@ export function loadSummary(state, today = state.context.date, days = 90) {
     if(load.score>0)confidence[load.confidence]++;
   }
   return {
-    today: last && {date:last.date, ctl:last.ctl, atl:last.atl, tsb:last.tsb, status:formStatus(last.tsb)},
+    today: last && {date:last.date, ctl:last.ctl, atl:last.atl, tsb:last.tsb, status:formStatus(last.tsb), source:last.source},
     change: last && weekAgo ? {ctl:last.ctl - weekAgo.ctl, atl:last.atl - weekAgo.atl, tsb:last.tsb - weekAgo.tsb} : null,
     historyDays: series.length,
     series: series.slice(-days),

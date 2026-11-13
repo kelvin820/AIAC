@@ -99,7 +99,7 @@ function minutesPerWeek(activities, today, weeks) {
 export function metricValue(metric, state, today) {
   const athlete = state.athlete ?? defaultAthlete();
   if (metric === 'ctl') {
-    const last = performanceSeries(loadActivities(state), athlete, today).at(-1);
+    const last = performanceSeries(loadActivities(state), athlete, today, state.intervalsFitness).at(-1);
     return last ? {value:Math.round(last.ctl * 10) / 10, source:'訓練負荷計算'} : null;
   }
   if (metric === 'thresholdPace') return athlete.thresholdPaceSecPerKm ? {value:athlete.thresholdPaceSecPerKm, source:'訓練閾值設定'} : null;
@@ -118,7 +118,7 @@ export function goalProgress(goal, state, today) {
   const daysLeft = goal.targetDate ? daysBetween(today, goal.targetDate) : null;
   const base = {daysLeft, weeksLeft:daysLeft === null ? null : Math.floor(daysLeft / 7)};
   if (goal.type === 'event') {
-    const last = performanceSeries(loadActivities(state), state.athlete ?? defaultAthlete(), today).at(-1);
+    const last = performanceSeries(loadActivities(state), state.athlete ?? defaultAthlete(), today, state.intervalsFitness).at(-1);
     return {...base, kind:'event', ratio:null, ctl:last ? last.ctl : null, tsb:last ? last.tsb : null,
       source:last ? '訓練負荷計算' : '尚無活動紀錄'};
   }

@@ -110,6 +110,23 @@ export function mergeWellness(state, rows, today, now) {
   return {saved, skipped};
 }
 
+// intervals.icu's daily fitness (ctl) and fatigue (atl). AIAC uses them as is on those days.
+export const MAX_FITNESS_DAYS = 800;
+export function mergeFitness(state, rows, today) {
+  state.intervalsFitness ??= {};
+  let saved = 0;
+  for (const row of rows) {
+    const date = typeof row.id === 'string' ? row.id.slice(0, 10) : null;
+    const ok = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 1000;
+    if (!date || date > today || !ok(row.ctl) || !ok(row.atl)) continue;
+    state.intervalsFitness[date] = {ctl:Math.round(row.ctl * 10) / 10, atl:Math.round(row.atl * 10) / 10};
+    saved++;
+  }
+  const keep = Object.keys(state.intervalsFitness).sort().slice(-MAX_FITNESS_DAYS);
+  state.intervalsFitness = Object.fromEntries(keep.map(d => [d, state.intervalsFitness[d]]));
+  return saved;
+}
+
 export function syncRange(status, today) {
   const oldest = status?.lastSyncDate ? addDays(status.lastSyncDate, -OVERLAP_DAYS) : addDays(today, -FIRST_SYNC_DAYS);
   return {oldest, newest:today};
@@ -135,8 +152,9 @@ export async function syncIntervals(state, client, {today, now = new Date().toIS
     }
     const counts = importActivities(state, items);
     const wellness = mergeWellness(state, Array.isArray(wellnessRows) ? wellnessRows : [], today, now);
+    const anchors = mergeFitness(state, Array.isArray(wellnessRows) ? wellnessRows : [], today);
     Object.assign(status, {lastSync:now, lastSyncDate:today, lastRange:range,
-      lastResult:{activities:counts.added, duplicates:counts.duplicates, invalid, wellness:wellness.saved}});
+      lastResult:{activities:counts.added, duplicates:counts.duplicates, invalid, wellness:wellness.saved, fitnessDays:anchors}});
     delete status.lastError;
     delete status.rejected;
     return {...counts, invalid, wellness:wellness.saved, range};

@@ -12,6 +12,7 @@ AIAC 用到的所有運動生理計算都登記在這裡：公式、出處、程
 - 程式：`src/training-load.mjs` `activityLoad`
 - 用在：首頁負荷卡、表現頁、活動列、行事曆、目標（CTL）、訓練計畫的近期量
 - 順序與公式：
+  0. **intervals.icu 負荷**（`icu_training_load`）：有就直接採用，標示來源 intervals.icu。可信度：高（intervals.icu 以完整紀錄計算）。2026-11-13 使用者決定。
   1. **功率 TSS**（需標準化功率 NP 與 FTP）：`時數 × (NP/FTP)² × 100`。原始方法：Coggan／TrainingPeaks 的 TSS。改寫自 Coach Watts `normalize-tss.ts`。可信度：高。
   2. **心率 HRSS**（需平均心率、最大心率、安靜心率）：`秒 × 平均心率 × HRR ÷ (LTHR × 3600) × 100`，HRR＝(平均心率－安靜)÷(最大－安靜)，無 LTHR 時以最大心率 90% 代替。出處：Coach Watts 的簡化版。**注意：這不是 TrainingPeaks 標準 hrTSS（後者以 TRIMP 相對於閾值 1 小時的 TRIMP 計算），數值會不同。** 可信度：中。
   3. **跑步配速分數**（需臨界配速）：`時數 × (臨界配速 ÷ 平均配速)² × 100`。AIAC 自訂的簡化 rTSS，未計坡度與分段強度。可信度：中。
@@ -19,16 +20,17 @@ AIAC 用到的所有運動生理計算都登記在這裡：公式、出處、程
   5. **時間估算**：每小時 36。出處：Coach Watts。可信度：低。
 - 限制：只用整筆平均值，沒有逐秒串流；間歇課會被低估。
 
-### A2. intervals.icu 負荷（icu_training_load）· 待決定
-- 程式：`src/intervals.mjs` 匯入為 `intervalsLoad`，**目前只保存、未使用**。
-- intervals.icu 用逐秒資料計算，通常比 A1 準。
-- **待使用者決定**：有 intervals.icu 負荷時，要不要以它取代 A1？（建議：有就用它，標示來源為 intervals.icu；沒有才用 A1。）
+### A2. 以 intervals.icu 為優先 · 核准（2026-11-13）
+- 使用者決定：**intervals.icu 有算的就用 intervals.icu 的，沒有的再用 AIAC 的算法。**
+- 活動負荷：有 `icu_training_load` 即採用（A1 第 0 步）。
+- 體能／疲勞：intervals.icu 健康紀錄中每天的 `ctl`、`atl` 存為 `state.intervalsFitness`，見 A3。
 
 ### A3. 體能／疲勞／狀態（CTL／ATL／TSB）· 待核准
 - 程式：`src/training-load.mjs` `performanceSeries`
 - 公式：`CTL += (負荷 − CTL)/42`、`ATL += (負荷 − ATL)/7`、`TSB = CTL − ATL`，逐日計算，無訓練日負荷為 0，從第一筆活動起算。
 - 原始方法：Banister 衝量反應模型，Coggan 的 Performance Management Chart。改寫自 Coach Watts `training-stress.ts`。
-- 限制：前約 6 週數值偏低（起始值為 0）。intervals.icu 也有自己的 CTL／ATL，兩者可能不同（見 A2）。
+- **intervals.icu 錨點**（A2）：有 intervals.icu 當天 `ctl`／`atl` 的日子直接採用其數值，其餘日子由 AIAC 公式從前一天接續計算；序列從第一筆活動或第一個錨點開始。每天標示來源（`intervals`／`aiac`）。
+- 限制：沒有錨點時，前約 6 週數值偏低（起始值為 0）。
 
 ### A4. 狀態分級（TSB 區間）· 待核准
 - 程式：`formStatus`

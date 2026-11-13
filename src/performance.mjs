@@ -84,7 +84,7 @@ export function performanceData(state, today = state.context.date) {
   }
   return {
     today,
-    pmc:performanceSeries(loadRecords, athlete, today).map(({date, load, ctl, atl, tsb}) => ({date, load, ctl, atl, tsb})),
+    pmc:performanceSeries(loadRecords, athlete, today, state.intervalsFitness).map(({date, load, ctl, atl, tsb, source}) => ({date, load, ctl, atl, tsb, source})),
     activities,
     zones:HR_ZONES.map(({key, label, max}) => ({key, label, maxBpm:threshold && Number.isFinite(max) ? Math.round(threshold.bpm * max) : null})),
     threshold,

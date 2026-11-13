@@ -95,7 +95,7 @@ INTERVALS_API_KEY=你的 API Key
 INTERVALS_ATHLETE_ID=你的運動員 ID（例如 i12345）
 ```
 
-兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。目前不下載 GPS 路線與分圈。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
+兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。**intervals.icu 有算的數字優先採用**：活動負荷用 intervals.icu 的訓練負荷，每天的體能與疲勞用 intervals.icu 健康紀錄中的數值；沒有的才由 AIAC 計算（見 `docs/ALGORITHMS.md` A2）。目前不下載 GPS 路線與分圈。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
 
 ## 自帶 LLM 與費用
 

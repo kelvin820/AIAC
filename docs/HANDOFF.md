@@ -19,6 +19,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **使用者決定**：intervals.icu 有算的就用 intervals.icu 的，沒有才用 AIAC 算法（`docs/ALGORITHMS.md` A2 已核准）。
+- **做了什麼**：`activityLoad` 第 0 步採用 `intervalsLoad`（來源 `intervals`、高可信度）；`performanceSeries` 新增 `anchors` 參數，`state.intervalsFitness`（來自 intervals.icu 健康紀錄的每日 `ctl`／`atl`，`mergeFitness` 寫入，最多保存 800 天）有值的日子直接採用，其餘由 AIAC 公式接續，每天標示來源；`loadSummary`、`performanceData`、目標的 CTL 都改用錨點。備份含 `intervalsFitness` 並驗證，舊備份為空。負荷卡註明體能與疲勞來自 intervals.icu；活動負荷來源名稱新增「intervals.icu」。
+- **狀態**：已推分支，與前一則同一個 PR（kelvin820/AIAC#8）。
+- **測試**：node --test 通過（新增 3 項：負荷優先、錨點接續、體能資料驗證與上限）。
+- **未完成／注意**：同前一則。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者決策（重要）**：不 fork Coach Watts（UI 不要像），只借功能與演算法，可重寫；試用期只有使用者本人，AI 費用自付；未來部署到 Vercel（不用 Docker）。資料來源以 intervals.icu 為主（Garmin 經 intervals.icu 轉入），其後 Garmin 官方 API、Strava、MCP。所有運動生理演算法需登記出處並經使用者核准。真人教練帶多位學員暫不做。
 - **路線**：1) 本機接 intervals.icu（本則）→ 2) 拆架構：請求處理共用化、資料存取介面化（檔案／Postgres）→ 3) 部署 Vercel（Neon Postgres、Blob、排程、網站保護；免費方案排程頻率不足時改為開頁同步＋手動）→ 4) 前端 `app.js` 拆模組 → 5) 一步步定義功能與多種 AI 教練。
 - **做了什麼**：新增 `src/intervals.mjs`：fetch-only 客戶端（Basic `API_KEY:<key>`，需運動員 ID）、`mapActivity`、`mapWellness`（1–4 換 1–5）、`mergeWellness`（intervals 優先、保留手填與備註）、`syncRange`（首次 90 天、之後重疊 2 天）、`syncIntervals`。`importActivities` 去重時補上 `normalizedPower`、`intervalsLoad`。`server.mjs`：`.env` 的 `INTERVALS_API_KEY`／`INTERVALS_ATHLETE_ID`、`POST /api/intervals-sync`（可補抓 30/90/180/365 天）、背景每 15 分鐘優先同步 intervals.icu、金鑰被拒時停止自動重試。「資料」分頁新增 intervals.icu 卡片。新增 `docs/ALGORITHMS.md`（現有演算法登記、出處、待核准與待研究清單）；`AGENTS.md` 加上演算法須登記核准的規則。
