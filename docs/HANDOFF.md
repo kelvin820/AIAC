@@ -19,6 +19,14 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **使用者決策（重要）**：不 fork Coach Watts（UI 不要像），只借功能與演算法，可重寫；試用期只有使用者本人，AI 費用自付；未來部署到 Vercel（不用 Docker）。資料來源以 intervals.icu 為主（Garmin 經 intervals.icu 轉入），其後 Garmin 官方 API、Strava、MCP。所有運動生理演算法需登記出處並經使用者核准。真人教練帶多位學員暫不做。
+- **路線**：1) 本機接 intervals.icu（本則）→ 2) 拆架構：請求處理共用化、資料存取介面化（檔案／Postgres）→ 3) 部署 Vercel（Neon Postgres、Blob、排程、網站保護；免費方案排程頻率不足時改為開頁同步＋手動）→ 4) 前端 `app.js` 拆模組 → 5) 一步步定義功能與多種 AI 教練。
+- **做了什麼**：新增 `src/intervals.mjs`：fetch-only 客戶端（Basic `API_KEY:<key>`，需運動員 ID）、`mapActivity`、`mapWellness`（1–4 換 1–5）、`mergeWellness`（intervals 優先、保留手填與備註）、`syncRange`（首次 90 天、之後重疊 2 天）、`syncIntervals`。`importActivities` 去重時補上 `normalizedPower`、`intervalsLoad`。`server.mjs`：`.env` 的 `INTERVALS_API_KEY`／`INTERVALS_ATHLETE_ID`、`POST /api/intervals-sync`（可補抓 30/90/180/365 天）、背景每 15 分鐘優先同步 intervals.icu、金鑰被拒時停止自動重試。「資料」分頁新增 intervals.icu 卡片。新增 `docs/ALGORITHMS.md`（現有演算法登記、出處、待核准與待研究清單）；`AGENTS.md` 加上演算法須登記核准的規則。
+- **狀態**：已推分支，待合併。使用者需在本機 `.env` 填入 intervals.icu 金鑰實測。
+- **測試**：node --test 92 項通過（新增 `tests/intervals.test.mjs` 7 項，用假 fetch；抓到未設定運動員 ID 時崩潰的 bug 並修正）。本環境無法連到 intervals.icu，欄位依 Coach Watts 的實作，尚未以真實帳號驗證。
+- **未完成／注意**：GPS 路線與分圈尚未從 intervals.icu 匯入（可用 `/activity/{id}/streams`、`/intervals`）；intervals.icu 的負荷要不要取代 AIAC 自算（ALGORITHMS A2）待使用者決定。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：PR #7（健康）已合併並部署。記錄使用者決定：第 8 期 8b「真人教練帶多位學員」暫不做；整體推進方向由使用者檢視後再決定。借用計畫第 1–7 期皆已合併到 `main`。
 - **狀態**：本則只改文件，推在分支上，未開 PR（可併入下一個 PR）。
 - **測試**：未改程式碼；`main` 上 node --test 85 項通過。

@@ -10,6 +10,7 @@ import {normalizeActivity,parseFit,importActivities,comparison,activitySummary,d
 import {createMcp} from './src/mcp.mjs';
 import {createStrava} from './src/strava.mjs';
 import {createGarmin} from './src/garmin.mjs';
+import {createIntervals,syncIntervals} from './src/intervals.mjs';
 import {fitActivityData} from './src/fit-core.mjs';
 import {syncStrava,syncStravaIfDue} from './src/strava-sync.mjs';
 import {backupLimit,exportBackup,restoreBackup} from './src/backup.mjs';
@@ -23,11 +24,12 @@ import {wellnessAction,wellnessView} from './src/wellness.mjs';
 import {updateKettlebell} from './public/kettlebell-core.js';
 
 const garmin=createGarmin(process.env.GARMIN_PERSONAL_API_KEY);
+const intervals=createIntervals({apiKey:process.env.INTERVALS_API_KEY,athleteId:process.env.INTERVALS_ATHLETE_ID});let nextIntervalsSync=0;
 let nextGarminSync=0;
 const dataDir=process.env.DATA_DIR||'data';const store=await openStore(dataDir),vault=await openVault(dataDir);const port=Number(process.env.PORT||3140);let busy=false;
 const base=`http://127.0.0.1:${port}`,mcp=createMcp(vault,base+'/auth/mcp/callback'),strava=createStrava(vault,base+'/auth/strava/callback');
 const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
-function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),wellnessView:wellnessView(s,todayIn(s.context.timezone)),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),wellnessView:wellnessView(s,todayIn(s.context.timezone)),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,intervals:{...(s.connections.intervals??{}),configured:intervals.configured(),nextSync:intervals.configured()&&Number.isFinite(nextIntervalsSync)&&nextIntervalsSync?new Date(nextIntervalsSync).toISOString():null},garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
 async function body(req,max){return JSON.parse((await raw(req,max)).toString()||'{}');}
@@ -104,6 +106,11 @@ http.createServer(async(req,res)=>{
    else if(req.url==='/api/strava-sync'){
     if(!strava.configured()||!strava.connected())throw Error('請先設定並連接 Strava。');
     const result=await syncStrava(store,strava,Date.now(),{backfill:b.backfill===true});return send(res,200,{...view(result.state),imported:result.imported,complete:result.complete});
+   }else if(req.url==='/api/intervals-sync'){
+    const backfillDays=b.backfillDays===undefined?null:Number(b.backfillDays);
+    if(backfillDays!==null&&![30,90,180,365].includes(backfillDays))throw Error('補抓天數需為 30、90、180 或 365');
+    let result;try{result=await syncIntervals(s,intervals,{today:todayIn(s.context.timezone),backfillDays});}finally{await store.save(s);}
+    nextIntervalsSync=Date.now()+15*60*1000;return send(res,200,{...view(s),imported:result});
    }else if(req.url==='/api/garmin-sync'){
     const imported=await syncGarmin(s);return send(res,200,{...view(s),imported});
    }else if(req.url==='/api/fit-activity-data'){
@@ -247,8 +254,17 @@ async function syncGarmin(s){
  }
 }
 
+async function backgroundIntervalsSync(){
+ const s=store.get();
+ if(s.connections.intervals?.rejected){nextIntervalsSync=Infinity;return;}
+ try{await syncIntervals(s,intervals,{today:todayIn(s.context.timezone)});}catch{ /* Status keeps the error; the data page shows it. */ }
+ finally{await store.save(s);nextIntervalsSync=Date.now()+15*60*1000;}
+}
+
 async function backgroundSync(){
  if(busy)return;
+ // intervals.icu is the primary source; it runs on its own 15-minute schedule.
+ if(intervals.configured()&&Date.now()>=nextIntervalsSync){busy=true;try{await backgroundIntervalsSync();}finally{busy=false;}return;}
  if(garmin.configured()&&Date.now()<nextGarminSync)return;
  busy=true;
  try{

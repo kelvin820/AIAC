@@ -857,6 +857,29 @@ function refreshActivityFilters(){
  filterActivities();
 }
 
+function renderIntervalsStatus(){
+ const iv=state.connections.intervals,target=$('#intervals-status');if(!target)return;
+ const disabled=Boolean(globalThis.AIAC_DEMO)||!iv?.configured;
+ for(const id of ['#intervals-sync','#intervals-backfill','#intervals-backfill-days'])$(id).disabled=disabled;
+ if(globalThis.AIAC_DEMO){target.textContent='請使用本機版連接 intervals.icu。';return;}
+ if(!iv?.configured){target.innerHTML='尚未設定。請在 AIAC 資料夾的 <code>.env</code> 加入 <code>INTERVALS_API_KEY</code>（intervals.icu → Settings → Developer Settings）與 <code>INTERVALS_ATHLETE_ID</code>（例如 i12345），再重啟 AIAC。';return;}
+ const format=value=>new Date(value).toLocaleString('zh-TW',{timeZone:state.context.timezone,hour12:false}),r=iv.lastResult;
+ target.textContent=[
+  iv.lastSync?`上次成功同步 ${format(iv.lastSync)}`:'尚無成功同步紀錄',
+  r?`新增 ${r.activities} 筆活動、合併 ${r.duplicates} 筆、健康紀錄 ${r.wellness} 天${r.invalid?`、略過 ${r.invalid} 筆無時間的活動`:''}`:'',
+  iv.nextSync&&!iv.rejected?`下次自動同步 ${format(iv.nextSync)}`:'',
+  iv.lastError,
+ ].filter(Boolean).join(' · ');
+}
+async function runIntervalsSync(body,label){
+ notice(label);
+ try{state=await api('intervals-sync',body);}
+ catch(error){const refreshed=await api('state').catch(()=>null);if(refreshed){state=refreshed;render();}throw error;}
+ render();const r=state.imported;
+ notice(`intervals.icu 同步完成（${r.range.oldest} — ${r.range.newest}）：新增 ${r.added} 筆活動，合併 ${r.duplicates} 筆，健康紀錄 ${r.wellness} 天。`);
+}
+$('#intervals-sync').addEventListener('click',()=>action(()=>runIntervalsSync({},'正在從 intervals.icu 同步…')));
+$('#intervals-backfill').addEventListener('click',()=>action(()=>runIntervalsSync({backfillDays:Number($('#intervals-backfill-days').value)},'正在補抓 intervals.icu 的舊資料…')));
 function renderGarminStatus(){
  const garmin=state.connections.garmin;
  const target=$('#garmin-status');
@@ -922,7 +945,7 @@ function renderActivityCard(activity,days){
 }
 
 function renderConnections(){
- renderGarminStatus();
+ renderGarminStatus();renderIntervalsStatus();
  for(const details of $('#activities').querySelectorAll('[data-route-activity]')){
   routeVisibility.unobserve(details);
   clearRouteMap(details.querySelector('[data-activity-map]'));
