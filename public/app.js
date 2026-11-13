@@ -351,7 +351,7 @@ function renderKpis(b){
  const days=planned.length;
  const kpiIcon=d=>`<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;$('#kpis').innerHTML=`<div class="kpi lead" data-ic="pulse"><span>${kpiIcon('<path d="M3 12h4l2-6 4 12 2-6h6"/>')}本週實際</span><strong>${b.completed.toFixed(0)}<small>/ ${b.target} 分鐘</small></strong><em>週目標 ${b.target?Math.round(b.completed/b.target*100):0}%</em></div><div class="kpi" data-ic="plan"><span>${kpiIcon('<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>')}課表規劃</span><strong>${b.planned}<small>分鐘</small></strong><em>${days} 個訓練日</em></div><div class="kpi" data-ic="target"><span>${kpiIcon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/>')}課表完成度</span><strong>${pct===null?'—':pct}<small>%</small></strong><em>已完成 ${done} / ${days} 天</em></div><div class="kpi" data-ic="bolt"><span>${kpiIcon('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>')}品質課</span><strong>${b.quality}<small>次</small></strong><em>Interval／Tempo</em></div>`;
 }
-const loadSourceNames={power:'功率 TSS','heart-rate':'心率 HRSS',pace:'配速分數','estimate-heart-rate':'心率估算','estimate-duration':'時間估算',none:'無'};
+const loadSourceNames={intervals:'intervals.icu',power:'功率 TSS','heart-rate':'心率 HRSS',pace:'配速分數','estimate-heart-rate':'心率估算','estimate-duration':'時間估算',none:'無'};
 const confidenceNames={high:'高可信度',medium:'中可信度',low:'低可信度・估算'};
 const signed=v=>(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1);
 function loadSparkline(series){
@@ -366,7 +366,7 @@ function renderLoad(){
  if(!t){$('#load-card').innerHTML=`<div class="card-title"><h2>訓練負荷與狀態</h2><span>CTL · ATL · TSB</span></div><p class="muted">匯入或登錄第一筆活動後，這裡會顯示體能、疲勞與狀態。</p>${setup}`;return;}
  const c=L.change,metric=(cls,label,sub,val,delta)=>`<div class="load-metric ${cls}"><span>${label}<small>${sub}</small></span><strong>${cls==='tsb'?signed(val):val.toFixed(1)}</strong>${delta===undefined?'':`<em class="${delta>=0?'up':'down'}">${delta>=0?'▲':'▼'} ${Math.abs(delta).toFixed(1)}<small> 7 天</small></em>`}</div>`;
  const est=L.confidence.low,young=L.historyDays<42;
- $('#load-card').innerHTML=`<div class="card-title"><h2>訓練負荷與狀態</h2><span class="form-chip" data-form="${esc(t.status.key)}">${esc(t.status.label)}</span></div><div class="load-metrics">${metric('ctl','體能','CTL',t.ctl,c?.ctl)}${metric('atl','疲勞','ATL',t.atl,c?.atl)}${metric('tsb','狀態','TSB',t.tsb,c?.tsb)}</div><p class="load-advice">${esc(t.status.advice)}</p>${loadSparkline(L.series)}<div class="chart-legend"><span><i class="lg-ctl"></i>體能</span><span><i class="lg-atl"></i>疲勞</span><span><i class="lg-tsb"></i>狀態</span></div><p class="small">${young?`目前只有 ${L.historyDays} 天紀錄，體能需約 6 週資料才穩定。`:''}${est?`${est} 筆活動的負荷為估算。`:''}數值為本地計算，不呼叫 LLM。</p>${setup}`;
+ $('#load-card').innerHTML=`<div class="card-title"><h2>訓練負荷與狀態</h2><span class="form-chip" data-form="${esc(t.status.key)}">${esc(t.status.label)}</span></div><div class="load-metrics">${metric('ctl','體能','CTL',t.ctl,c?.ctl)}${metric('atl','疲勞','ATL',t.atl,c?.atl)}${metric('tsb','狀態','TSB',t.tsb,c?.tsb)}</div><p class="load-advice">${esc(t.status.advice)}</p>${loadSparkline(L.series)}<div class="chart-legend"><span><i class="lg-ctl"></i>體能</span><span><i class="lg-atl"></i>疲勞</span><span><i class="lg-tsb"></i>狀態</span></div><p class="small">${young?`目前只有 ${L.historyDays} 天紀錄，體能需約 6 週資料才穩定。`:''}${est?`${est} 筆活動的負荷為估算。`:''}${t.source==='intervals'?'體能與疲勞採用 intervals.icu 的數值；':''}數值為本地計算，不呼叫 LLM。</p>${setup}`;
 }
 function parsePace(text){if(!text)return null;const m=/^(\d{1,2}):([0-5]\d)$/.exec(text.trim());if(!m)throw Error('臨界配速請用「分:秒」格式，例如 5:00');return Number(m[1])*60+Number(m[2]);}
 let perfPeriod=90;
@@ -857,6 +857,29 @@ function refreshActivityFilters(){
  filterActivities();
 }
 
+function renderIntervalsStatus(){
+ const iv=state.connections.intervals,target=$('#intervals-status');if(!target)return;
+ const disabled=Boolean(globalThis.AIAC_DEMO)||!iv?.configured;
+ for(const id of ['#intervals-sync','#intervals-backfill','#intervals-backfill-days'])$(id).disabled=disabled;
+ if(globalThis.AIAC_DEMO){target.textContent='請使用本機版連接 intervals.icu。';return;}
+ if(!iv?.configured){target.innerHTML='尚未設定。請在 AIAC 資料夾的 <code>.env</code> 加入 <code>INTERVALS_API_KEY</code>（intervals.icu → Settings → Developer Settings）與 <code>INTERVALS_ATHLETE_ID</code>（例如 i12345），再重啟 AIAC。';return;}
+ const format=value=>new Date(value).toLocaleString('zh-TW',{timeZone:state.context.timezone,hour12:false}),r=iv.lastResult;
+ target.textContent=[
+  iv.lastSync?`上次成功同步 ${format(iv.lastSync)}`:'尚無成功同步紀錄',
+  r?`新增 ${r.activities} 筆活動、合併 ${r.duplicates} 筆、健康紀錄 ${r.wellness} 天${r.invalid?`、略過 ${r.invalid} 筆無時間的活動`:''}`:'',
+  iv.nextSync&&!iv.rejected?`下次自動同步 ${format(iv.nextSync)}`:'',
+  iv.lastError,
+ ].filter(Boolean).join(' · ');
+}
+async function runIntervalsSync(body,label){
+ notice(label);
+ try{state=await api('intervals-sync',body);}
+ catch(error){const refreshed=await api('state').catch(()=>null);if(refreshed){state=refreshed;render();}throw error;}
+ render();const r=state.imported;
+ notice(`intervals.icu 同步完成（${r.range.oldest} — ${r.range.newest}）：新增 ${r.added} 筆活動，合併 ${r.duplicates} 筆，健康紀錄 ${r.wellness} 天。`);
+}
+$('#intervals-sync').addEventListener('click',()=>action(()=>runIntervalsSync({},'正在從 intervals.icu 同步…')));
+$('#intervals-backfill').addEventListener('click',()=>action(()=>runIntervalsSync({backfillDays:Number($('#intervals-backfill-days').value)},'正在補抓 intervals.icu 的舊資料…')));
 function renderGarminStatus(){
  const garmin=state.connections.garmin;
  const target=$('#garmin-status');
@@ -922,7 +945,7 @@ function renderActivityCard(activity,days){
 }
 
 function renderConnections(){
- renderGarminStatus();
+ renderGarminStatus();renderIntervalsStatus();
  for(const details of $('#activities').querySelectorAll('[data-route-activity]')){
   routeVisibility.unobserve(details);
   clearRouteMap(details.querySelector('[data-activity-map]'));

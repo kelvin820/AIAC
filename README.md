@@ -86,6 +86,17 @@ node --env-file-if-exists=.env server.mjs
 
 資料限制會直接標示：強度分布依每筆活動的平均心率歸類，不是逐秒區間時間；個人最佳只列量測到的紀錄（最快 1 公里分圈需含分圈的 FIT、5／10 公里以上的最佳平均配速、最長距離與時間），不推算比賽成績。
 
+## intervals.icu（主要資料來源）
+
+把 Garmin 同步到 intervals.icu 後，AIAC 從 intervals.icu 讀取活動摘要（時間、距離、平均心率、類型、加權功率、intervals.icu 負荷）與健康數據（安靜心率、HRV、睡眠、體重，及睡眠品質、疲勞、痠痛、壓力、心情）。設定方式：在 AIAC 資料夾的 `.env` 加入
+
+```
+INTERVALS_API_KEY=你的 API Key
+INTERVALS_ATHLETE_ID=你的運動員 ID（例如 i12345）
+```
+
+兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。**intervals.icu 有算的數字優先採用**：活動負荷用 intervals.icu 的訓練負荷，每天的體能與疲勞用 intervals.icu 健康紀錄中的數值；沒有的才由 AIAC 計算（見 `docs/ALGORITHMS.md` A2）。目前不下載 GPS 路線與分圈。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
+
 ## 自帶 LLM 與費用
 
 在「同步與設定 → 教練與額度」貼自己的 API Key、Base URL 與模型 ID。接口需相容 `/chat/completions`、`response_format: json_object`、`max_tokens`。支援 HTTPS，本機模型可用 localhost HTTP。

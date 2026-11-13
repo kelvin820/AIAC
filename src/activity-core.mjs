@@ -22,6 +22,7 @@ export function importActivities(state,items,activityIds){
     existing.quality=existing.quality.filter(issue=>issue!=='缺少心率');
    }
    if(a.stravaMetrics)existing.stravaMetrics={...existing.stravaMetrics,...a.stravaMetrics};
+   for(const key of ['normalizedPower','intervalsLoad'])if(a[key]&&!existing[key])existing[key]=a[key];
    for(const s of a.sources)if(!existing.sources.some(x=>x.source===s.source&&x.sourceId===s.sourceId))existing.sources.push(s);
   }
   else {state.activities.push(a);added++;}

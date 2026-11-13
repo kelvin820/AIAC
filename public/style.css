@@ -783,3 +783,8 @@ nav button[data-tab=activity-log]{--ic:#57D6C7}
 .home-readiness b{color:var(--rd,var(--muted))}
 .home-readiness span{margin-left:auto;color:var(--muted)}
 .home-readiness[data-status=good]{--rd:#2FE39A}.home-readiness[data-status=watch]{--rd:#FFB547}.home-readiness[data-status=low]{--rd:#FF6B4A;border-color:#6B3A2F;color:var(--text)}
+.intervals-card{border-top:2px solid var(--accent)}
+.intervals-card h2{display:flex;align-items:center;gap:8px}
+.inline-select{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px}
+.inline-select select{width:auto;margin:0;padding:8px 10px}
+#intervals-status code{font-size:12px;background:var(--field);padding:1px 5px;border-radius:4px}
