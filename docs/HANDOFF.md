@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 5 期 Training Plan 與 My Plan。新增 `src/training-plan.mjs`（純函式）：`validatePlanSettings`、`planBlocks`、`weekTargets`（Coach Watts 週目標規則）、`layoutWeek`（依長跑日的固定分散模式 `DAY_PATTERNS`；品質課優先週二／週四相對位置，不與長跑或彼此相鄰；恢復週無品質課；比賽週依目標日期）、`recentWeeklyAverage`（含壺鈴課）、`generatePlan`、`protectedReason`（已過去／已有實際紀錄／已排壺鈴課）、`applyPreview`、`applyPlan`（只寫未受保護日、本週變動記入 revisions、舊執行中計畫標為 replaced）、`trainingPlanAction`（preview／apply／archive；賽事目標自動算週數）、`activePlanStatus`、`validateStoredPlans`。`coach.mjs` 的 `hasRecordedActivity` 改為 export 供共用。狀態新增 `state.trainingPlans`；`POST /api/training-plan`（preview 只回 `{preview}` 不存檔）與試用版同名路徑；`view()` 新增 `planStatus`；備份含計畫並驗證；LLM 輸入加入 `trainingPlan`（README 已更新）。前端在「課表」分頁新增「訓練計畫」卡（執行中狀態、表單、預覽：區塊條、每週目標與排入長條、前兩週與比賽週每日、套用說明）與「我的計畫」清單（重新產生、封存）。截圖 `docs/aiac-training-plan.png`。
+- **狀態**：已推分支，待合併。
+- **測試**：node --test 72 項通過（新增 `tests/training-plan.test.mjs` 9 項，含 2–7 天 × 4 種長跑日 × 各區塊的「高強度日不相鄰、分鐘合法」不變量；HTTP 預覽不存檔、錯誤與封存）；build-demo 成功；Playwright 於本機（6 週示範資料＋賽事目標）與試用版實際建立、預覽、套用、封存，無 console 錯誤。
+- **未完成／注意**：課表格式每天上限 180 分鐘（`validatePlan`），比賽日超過時以 180 表示。計畫只寫週課表，不產生結構化課表（第 6 期）。下一步第 6 期結構化 Workout。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成借用計畫第 4 期 Goals（以 Codex 的 PR #3 合併後 `main` 為基準）。新增 `src/goals.mjs`（純函式）：`validateGoal`（event／performance／body／consistency）、`metricValue`（CTL、臨界配速、近 4 週每週分鐘、體重自動帶入並附來源）、`metricProgress`（支援越小越好）、`goalProgress`、`goalsSummary`（排序與主要目標）、`goalsForCoach`、`applyGoalAction`、`trainingSessions`（獨立活動＋壺鈴課，裝置紀錄不重複）。狀態新增 `state.goals`；`POST /api/goal` 與試用版 `goal`；`view()` 新增 `goalsView`（不覆蓋原始 `goals`）；備份含目標並逐筆驗證，舊備份缺目標時為空；LLM 輸入加入進行中的目標（README 傳送範圍已更新）。前端：側欄「目標」分頁（粉紅，第 6 個）、目標卡片（倒數、進度條、來源、編輯／完成／封存／刪除）、依類型與指標切換欄位的表單（配速 分:秒、完賽時間 時:分:秒、新增時自動帶入起始值）、首頁頂端主要目標條。截圖 `docs/aiac-goals.png`。
 - **修正 main 上的 CSS bug**：PR #3 合併時 `public/style.css` 少了行事曆手機版 `@media(max-width:760px){` 的結尾 `}`，導致其後所有樣式（含 Codex 新增的頁首、壺鈴等 234 行）只在手機寬度生效，桌面版線上試用版因此缺樣式。已補回；修正後桌面各分頁逐一截圖確認。手機底部導覽改為 9 欄（多了「紀錄」與「目標」）。
 - **狀態**：已推分支，待合併。

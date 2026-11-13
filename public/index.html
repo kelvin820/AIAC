@@ -60,6 +60,27 @@
       <div class="actions"><button class="primary">儲存課表</button><button class="secondary" id="week-edit-cancel" type="button">取消</button></div>
     </form>
   </article>
+  <article class="card training-plan-card" id="training-plan-card">
+    <div class="week-card-heading"><h2>訓練計畫</h2><div class="actions"><button type="button" class="primary" id="tp-new">建立訓練計畫</button></div></div>
+    <div id="tp-status"></div>
+    <form id="tp-form" class="tp-form" hidden novalidate>
+      <p class="small">依目標與每週可用時間，產生基礎期、強化期、減量期與比賽週的週期化課表。先預覽，確認後才寫入課表；已過去、已有實際紀錄或已排壺鈴課的日子不會被改動。</p>
+      <div class="fields">
+        <label>計畫名稱<input name="name" maxlength="80" placeholder="例如：台北馬拉松備賽"></label>
+        <label>對應目標<select name="goalId"></select></label>
+        <label>從哪一週開始<input name="startDate" type="date"></label>
+        <label>計畫週數<input name="weeks" type="number" min="1" max="52" inputmode="numeric"><span class="label-note" id="tp-weeks-note"></span></label>
+        <label>每週目標分鐘<input name="weeklyMinutes" type="number" min="60" max="1200" step="5" inputmode="numeric"></label>
+        <label>每週訓練天數<select name="daysPerWeek"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option></select></label>
+        <label>長跑日<select name="longRunDay"><option value="0">週一</option><option value="1">週二</option><option value="2">週三</option><option value="3">週四</option><option value="4">週五</option><option value="5" selected>週六</option><option value="6">週日</option></select></label>
+        <label>每週品質課<select name="qualityPerWeek"><option value="0">0 堂</option><option value="1" selected>1 堂</option><option value="2">2 堂</option></select></label>
+        <label>恢復週<select name="recoveryRhythm"><option value="0">不安排</option><option value="3">每 3 週一次</option><option value="4" selected>每 4 週一次</option></select></label>
+      </div>
+      <div class="actions"><button type="submit" class="primary">產生預覽</button><button type="button" class="secondary" id="tp-cancel">取消</button></div>
+    </form>
+    <div id="tp-preview" class="tp-preview" hidden></div>
+  </article>
+  <article class="card" id="my-plans"><div class="week-card-heading"><h2>我的計畫</h2></div><div id="tp-list"></div></article>
 </section>
 <section id="calendar" class="page" hidden><div class="heading"><div class="eyebrow">計畫與實際，一目了然</div><h1>活動行事曆</h1><p>每天的計畫課程與實際完成的活動。點日期看當天內容，點活動看單次訓練詳情。匯入與對應課表請到「資料」分頁。</p></div><div class="cal-toolbar"><div class="period-switch" role="group" aria-label="切換月份"><button type="button" data-cal-month="-1">← 上個月</button><button type="button" data-cal-month="0">本月</button><button type="button" data-cal-month="1">下個月 →</button></div><h2 id="cal-title"></h2><span id="cal-summary" class="small"></span></div><div id="cal-grid" class="cal-grid" role="grid" aria-labelledby="cal-title"></div><article id="cal-day" class="card cal-day" hidden></article><article id="workout-detail" class="card workout-detail" hidden></article></section><section id="performance" class="page" hidden><div class="heading"><div class="eyebrow">長期進步，看得見</div><h1>表現分析</h1><p>體能、疲勞與狀態的長期走勢、每週訓練量、強度分布與個人最佳。全部在本地計算，不呼叫 LLM。</p></div><div class="period-switch" role="group" aria-label="分析期間"><button type="button" data-period="7">7 天</button><button type="button" data-period="30">30 天</button><button type="button" data-period="90" class="active">90 天</button><button type="button" data-period="180">180 天</button><button type="button" data-period="all">全部</button></div><div id="perf-kpis" class="kpi-row" aria-label="期間摘要"></div><article class="card"><div class="card-title"><h2>體能 · 疲勞 · 狀態</h2><span id="pmc-range"></span></div><div id="pmc-chart"></div></article><div class="two-col"><article class="card"><div class="card-title"><h2>每週訓練量</h2><span>分鐘 · 依訓練類型</span></div><div id="weekly-volume"></div></article><article class="card"><div class="card-title"><h2>強度分布</h2><span id="zone-basis"></span></div><div id="intensity"></div></article></div><article class="card"><div class="card-title"><h2>個人最佳</h2><span>只列量測到的紀錄</span></div><div id="bests" class="bests"></div></article></section>
 <section id="goals" class="page" hidden>

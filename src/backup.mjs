@@ -3,10 +3,11 @@ import {validatePlan} from './coach.mjs';
 import {weekStart} from './plan-weeks.mjs';
 import {defaultAthlete,validateAthlete} from './training-load.mjs';
 import {validateGoal} from './goals.mjs';
+import {validateStoredPlans} from './training-plan.mjs';
 import {emptyKettlebell,matchesCircuitTime,restoreKettlebell} from '../public/kettlebell-core.js';
 
 export const backupLimit = 10 * 1024 * 1024;
-const fields = ['profile','athlete','goals','context','plan','planHistory','activities','messages','recommendations','revisions','memories'];
+const fields = ['profile','athlete','goals','trainingPlans','context','plan','planHistory','activities','messages','recommendations','revisions','memories'];
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const string = value => typeof value === 'string';
 const id = value => string(value) && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
@@ -17,7 +18,7 @@ const check = (condition, label) => {if (!condition) throw Error(`備份的${lab
 export function exportBackup(state) {
   return {
     format:'aiac-backup', version:1, exportedAt:new Date().toISOString(),
-    data:{...Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : key === 'goals' ? [] : undefined))])),kettlebell:structuredClone(state.kettlebell??emptyKettlebell())},
+    data:{...Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : key === 'goals' || key === 'trainingPlans' ? [] : undefined))])),kettlebell:structuredClone(state.kettlebell??emptyKettlebell())},
   };
 }
 
@@ -90,6 +91,8 @@ export function restoreBackup(state, backup) {
     catch { check(false, '目標'); }
   });
   check(new Set(goals.map(goal => goal.id)).size === goals.length, '目標識別碼');
+  // Backups made before training plans existed have none.
+  const trainingPlans = validateStoredPlans(data.trainingPlans);
   const kettlebell=restoreKettlebell(data.kettlebell);
   const sessions=new Map(kettlebell.sessions.map(session=>[session.id,session]));
   for(const activity of data.activities){
@@ -97,5 +100,5 @@ export function restoreBackup(state, backup) {
     const session=sessions.get(activity.kettlebellSessionId);
     check(id(activity.kettlebellSessionId)&&session&&activity.planId===null&&matchesCircuitTime(session,activity),'壺鈴活動對應');
   }
-  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : key === 'goals' ? goals : structuredClone(data[key])])),kettlebell};
+  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : key === 'goals' ? goals : key === 'trainingPlans' ? trainingPlans : structuredClone(data[key])])),kettlebell};
 }
