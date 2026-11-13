@@ -58,6 +58,7 @@ function renderDailyOverview() {
   <div class="session-title">${day?esc(day.type==='Rest'?'休息':day.type):'尚未安排'}</div>
   <p class="session-detail">${day?`預計 ${day.minutes} 分鐘`:'可從週課表新增今天的訓練。'}
   ${linked.length?` · 實際 ${linked.reduce((sum,activity)=>sum+activity.durationSeconds/60,0).toFixed(1)} 分鐘`:''}</p>
+  ${day?renderStructure(day.id,{open:true,summary:'今天怎麼練'}):''}
   ${suggestion?`<div class="session-match">${suggestion}</div>`:remaining.length?`<ul class="daily-activities">${remaining.map(card).join('')}</ul>`:''}`}
   <div class="actions kb-entry">${circuitButton(active?.plan.date??date,active?'繼續壺鈴訓練':result?'查看壺鈴結果':circuit?'開啟壺鈴課':day?.minutes>0?'改做壺鈴間歇':'安排壺鈴間歇',circuit||active?'primary':'secondary')}<button type="button" class="text-button" data-tab="training-research">訓練研究 ↗</button></div>
   <button type="button" class="text-button session-link" data-tab="plan">開啟週課表 →</button>`;
@@ -277,7 +278,7 @@ function renderWeeklyPlan(){
   return `<article class="week-day${today?' is-today':''}">
    <div class="week-day-date"><strong>${weekday}</strong>
     <span>${esc(day.id.slice(5))}${today?' · 今天':''}</span></div>
-   <div class="week-day-planned"><span class="week-label">預計</span><strong>${esc(day.type==='Rest'?'休息':day.type)}</strong><span>${day.minutes} 分鐘</span></div>
+   <div class="week-day-planned"><span class="week-label">預計</span><strong>${esc(day.type==='Rest'?'休息':day.type)}</strong><span>${day.minutes} 分鐘</span>${renderStructure(day.id)}</div>
    <div class="week-day-actual"><span class="week-label">實際</span><strong>${recorded?`${result.actualMinutes.toFixed(1)} 分鐘`:'—'}</strong>
     ${recorded?`<span>${esc(types.join('、'))}${result.distanceMeters===null?'':` · ${(result.distanceMeters/1000).toFixed(2)} km`}</span>`:''}
     ${renderPlanActivitySuggestion(day,result)}</div>
@@ -459,7 +460,7 @@ function renderCalDay(){
   return '<button type="button" class="cal-act-row" data-workout="'+esc(activity.id)+'"><span><strong>'+esc(activity.name)+'</strong><small>'+details+'</small></span><em>'+(load?'負荷 '+load.score:'')+'</em></button>';
  }).join('');
  panel.hidden=false;
- panel.innerHTML='<div class="card-title"><h2>'+calSelected+'</h2><button type="button" class="secondary" data-cal-close>關閉</button></div><div class="cal-day-grid"><div><h3>計畫</h3>'+planned+(circuit&&!session?circuitButton(calSelected,'查看壺鈴課'):'')+'</div><div><h3>實際活動</h3>'+(rows||'<p class="muted">沒有活動紀錄。</p>')+'</div></div>';
+ panel.innerHTML='<div class="card-title"><h2>'+calSelected+'</h2><button type="button" class="secondary" data-cal-close>關閉</button></div><div class="cal-day-grid"><div><h3>計畫</h3>'+planned+(circuit?'':renderStructure(calSelected,{open:true}))+(circuit&&!session?circuitButton(calSelected,'查看壺鈴課'):'')+'</div><div><h3>實際活動</h3>'+(rows||'<p class="muted">沒有活動紀錄。</p>')+'</div></div>';
 }
 function renderWorkoutDetail(){
  const panel=$('#workout-detail'),a=calWorkout&&state.activities.find(x=>x.id===calWorkout);
@@ -471,7 +472,7 @@ function renderWorkoutDetail(){
  panel.innerHTML=`<div class="card-title"><h2>${esc(a.name)}<small class="wd-sub">${esc(a.date)} · ${esc(a.sources.map(x=>x.source).join(' / '))}</small></h2><button type="button" class="secondary" data-workout-close>關閉</button></div>
 <div class="wd-metrics">${metric('時間',fmtMin(a.durationSeconds/60))}${metric('距離',a.distanceMeters?`${(a.distanceMeters/1000).toFixed(2)}<small>km</small>`:'—')}${metric('平均配速',sum.pace?`${formatPace(sum.pace)}<small>/km</small>`:'—')}${metric('平均心率',a.avgHeartRate?`${a.avgHeartRate}<small>bpm</small>`:'—',zone?esc(zone.label):'')}${metric('訓練負荷',l?l.score:'—',l?`${esc(loadSourceNames[l.source]||l.source)} · ${esc(confidenceNames[l.confidence])}`:'')}</div>
 ${l?`<p class="small">${esc(l.method)}</p>`:''}
-<div class="wd-compare"><h3>計畫與實際</h3>${plan?`<div class="wd-compare-row"><span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span><span>→</span><span class="cal-act" data-type="${esc(p?.type??'Unknown')}">${esc(typeNames[p?.type]||'目的待確認')} ${fmtMin(a.durationSeconds/60)}</span>${ratio===null?'':`<strong>${ratio}%</strong>`}</div><p class="small">${a.trainingType==='Unknown'?'訓練目的尚未確認，請在「資料」分頁標記。':(a.trainingType===plan.type?'訓練目的與計畫相符（使用者標記）。':'訓練目的與計畫不同（使用者標記）。')}時間相同不代表訓練刺激等效。</p>`:'<p class="muted">尚未對應課表。可在「資料」分頁選擇對應日期。</p>'}</div>
+${a.planId?renderExecution(a.planId):''}<div class="wd-compare"><h3>計畫與實際</h3>${plan?`<div class="wd-compare-row"><span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span><span>→</span><span class="cal-act" data-type="${esc(p?.type??'Unknown')}">${esc(typeNames[p?.type]||'目的待確認')} ${fmtMin(a.durationSeconds/60)}</span>${ratio===null?'':`<strong>${ratio}%</strong>`}</div><p class="small">${a.trainingType==='Unknown'?'訓練目的尚未確認，請在「資料」分頁標記。':(a.trainingType===plan.type?'訓練目的與計畫相符（使用者標記）。':'訓練目的與計畫不同（使用者標記）。')}時間相同不代表訓練刺激等效。</p>`:'<p class="muted">尚未對應課表。可在「資料」分頁選擇對應日期。</p>'}</div>
 ${sum.laps?.length?renderLapFacts(sum.laps):'<p class="small">沒有分圈資料。匯入含分圈的 FIT 檔後會顯示每圈配速與心率。</p>'}
 <p class="small">${esc(sum.uncertainties.join(' · '))}</p>
 <button type="button" class="text-button" data-open-activity="${esc(a.id)}">在資料分頁查看地圖、曲線與對應設定 →</button>`;
@@ -679,6 +680,15 @@ document.querySelector('#plan').addEventListener('click',e=>{
  const reuse=e.target.closest('[data-tp-reuse]');if(reuse){const p=state.trainingPlans.find(x=>x.id===reuse.dataset.tpReuse);openTrainingPlanForm(p.settings);$('#tp-form').scrollIntoView?.({block:'start'});return;}
  const arc=e.target.closest('[data-tp-archive]');if(arc){if(!window.confirm('封存後不再顯示為執行中；已寫入課表的內容不會被刪除。確定封存？'))return;action(async()=>{state=await api('training-plan',{action:'archive',id:arc.dataset.tpArchive});render();notice('計畫已封存，課表內容保留。');});}
 });
+const stepTypeNames={warmup:'暖身',active:'主課',rest:'恢復',cooldown:'緩和'};
+function fmtTarget(t){if(!t)return '';if(t.kind==='pace')return `${formatPace(t.low)}–${formatPace(t.high)} /km`;if(t.kind==='hr')return `${t.low}–${t.high} bpm`;return `RPE ${t.low}–${t.high}`;}
+function fmtStepMin(sec){const m=sec/60;return Number.isInteger(m)?`${m}′`:`${m.toFixed(1)}′`;}
+function flatSteps(steps){return steps.flatMap(s=>s.type==='repeat'?Array.from({length:s.reps},()=>s.steps).flat():[s]);}
+function structureTimeline(st){const flat=flatSteps(st.steps);let x=0;return `<svg class="st-timeline" viewBox="0 0 ${st.totalSeconds} 10" preserveAspectRatio="none" aria-hidden="true">${flat.map(s=>{const r=`<rect data-intensity="${s.intensity}" x="${x}" y="${s.intensity==='interval'?0:s.intensity==='tempo'?2:s.intensity==='easy'?4:6}" width="${Math.max(1,s.durationSeconds-st.totalSeconds*.002)}" height="${s.intensity==='interval'?10:s.intensity==='tempo'?8:s.intensity==='easy'?6:4}"/>`;x+=s.durationSeconds;return r;}).join('')}</svg>`;}
+function structureSteps(st){return `<ol class="st-steps">${st.steps.map(s=>s.type==='repeat'?`<li class="st-repeat"><strong>${s.reps} 組</strong><ol>${s.steps.map(c=>`<li data-intensity="${c.intensity}"><span>${fmtStepMin(c.durationSeconds)}</span><b>${esc(c.label)}</b><em>${esc(fmtTarget(c.target))}</em></li>`).join('')}</ol></li>`:`<li data-intensity="${s.intensity}"><span>${fmtStepMin(s.durationSeconds)}</span><b>${esc(s.label)}</b><em>${esc(fmtTarget(s.target))}</em>${s.note?`<small>${esc(s.note)}</small>`:''}</li>`).join('')}</ol>`;}
+function renderStructure(date,{open=false,summary='課表內容'}={}){const st=state.workouts?.structures?.[date];if(!st)return '';return `<details class="structure"${open?' open':''}><summary>${summary}<span>${st.plannedMinutes} 分鐘 · ${esc(st.basis.note)}</span></summary>${structureTimeline(st)}${structureSteps(st)}</details>`;}
+const checkWords={in:'在目標內',above:'高於目標',below:'低於目標',faster:'比目標快',slower:'比目標慢',unknown:'無法比對'};
+function renderExecution(date){const c=state.workouts?.checks?.[date];if(!c)return '';return `<div class="st-check"><h3>執行比對</h3><p><strong>${c.actualMinutes}</strong> / ${c.plannedMinutes} 分鐘（${c.timeRatio}%）</p>${c.checks.map(k=>`<p class="st-check-row" data-result="${k.result}"><span>${esc(k.metric)}</span><b>${k.value===null?'—':k.of!==undefined?`${k.value} / ${k.of} 組（共 ${k.laps} 圈）`:k.target?.kind==='pace'?formatPace(k.value)+' /km':k.value+(k.target?.kind==='hr'?' bpm':'')}</b>${k.target?`<em>目標 ${esc(fmtTarget(k.target))}</em>`:''}<i>${checkWords[k.result]}</i>${k.note?`<small>${esc(k.note)}</small>`:''}</p>`).join('')}<p class="small">只比對量測值：平均值含暖身與緩和，不代表每段都達標，也不推論訓練效果。</p></div>`;}
 function render(){
  $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
  const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();

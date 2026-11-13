@@ -18,6 +18,7 @@ import {loadSummary,validateAthlete} from './src/training-load.mjs';
 import {performanceData} from './src/performance.mjs';
 import {applyGoalAction,goalsSummary} from './src/goals.mjs';
 import {activePlanStatus,trainingPlanAction} from './src/training-plan.mjs';
+import {workoutsView} from './src/workout-structure.mjs';
 import {updateKettlebell} from './public/kettlebell-core.js';
 
 const garmin=createGarmin(process.env.GARMIN_PERSONAL_API_KEY);
@@ -25,7 +26,7 @@ let nextGarminSync=0;
 const dataDir=process.env.DATA_DIR||'data';const store=await openStore(dataDir),vault=await openVault(dataDir);const port=Number(process.env.PORT||3140);let busy=false;
 const base=`http://127.0.0.1:${port}`,mcp=createMcp(vault,base+'/auth/mcp/callback'),strava=createStrava(vault,base+'/auth/strava/callback');
 const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
-function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
 async function body(req,max){return JSON.parse((await raw(req,max)).toString()||'{}');}
