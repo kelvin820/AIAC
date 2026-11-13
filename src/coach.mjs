@@ -1,6 +1,7 @@
 import {activityLapFacts,comparison} from './activity-core.mjs';
 import {plannedSeconds,sessionTotals} from '../public/kettlebell-core.js';
 import {goalsForCoach} from './goals.mjs';
+import {activePlanStatus} from './training-plan.mjs';
 
 export const DNA='先理解，再指導。長期進步、合理挑戰、尊重動機與自主權。不可捏造生理數據、天氣或路線。不以單一指標決定休息。不強行補課。暫時感受不是永久偏好。';
 export function budget(state,plan=state.plan){
@@ -15,7 +16,7 @@ export function validatePlan(plan,original){
  const types=['Zone2','Interval','Tempo','Recovery','Rest','Long Run','Indoor'];
  return plan.map((p,i)=>{if(p.id!==original[i].id||!types.includes(p.type)||!Number.isInteger(p.minutes)||p.minutes<0||p.minutes>180||typeof p.completed!=='boolean'||p.completed!==original[i].completed)throw Error('課表格式或日期不正確');return {id:p.id,type:p.type,minutes:p.minutes,completed:p.completed};});
 }
-function hasRecordedActivity(state, date) {
+export function hasRecordedActivity(state, date) {
  return (state.activities??[]).some(activity=>!activity.kettlebellSessionId&&(activity.planId===date||(!activity.planId&&activity.date===date&&activity.durationSeconds>0)));
 }
 
@@ -93,7 +94,7 @@ export async function coach(state,message,kind,env=process.env){
  } : null;
  const allowedState={...state,activities:allowed};
  const kettlebellDays=state.plan.filter(day=>state.kettlebell?.plans[day.id]).map(day=>day.id);
- const input=JSON.stringify({profile:state.profile,goals:goalsForCoach(state),context:state.context,plan:state.plan,kettlebellDays,budget:budget(allowedState),weeklyActuals:weeklyActuals(allowedState),analysisActivity,activities:allowed.slice(-10).map(summary),memories:state.memories.slice(-20),history:state.messages.slice(-12).map(m=>({role:m.role,text:m.text.slice(0,1200)})),message,kind});
+ const input=JSON.stringify({profile:state.profile,goals:goalsForCoach(state),trainingPlan:activePlanStatus(state,state.context.date),context:state.context,plan:state.plan,kettlebellDays,budget:budget(allowedState),weeklyActuals:weeklyActuals(allowedState),analysisActivity,activities:allowed.slice(-10).map(summary),memories:state.memories.slice(-20),history:state.messages.slice(-12).map(m=>({role:m.role,text:m.text.slice(0,1200)})),message,kind});
  if(input.length>32000)throw Error('本次情境過長（超過 32000 字元），請縮減個人設定或記憶再分析');
  const workoutGuidance = kind === 'workout'
   ? ' 若有分圈，引用圈號及實測數值。圈數多於所提供的明細時，明細只包含首尾樣本。分圈不等於間歇工作段，缺值不可當作零。'
