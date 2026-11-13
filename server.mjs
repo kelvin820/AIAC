@@ -3,7 +3,7 @@ import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {openStore,initialState} from './src/store.mjs';
-import {coach,budget,validatePlan} from './src/coach.mjs';
+import {coach,budget,validatePlan,guardRecordedPlan} from './src/coach.mjs';
 import {openVault} from './src/vault.mjs';
 import {defaultConnections,llmEnvironment,validateEndpoint} from './src/providers.mjs';
 import {normalizeActivity,parseFit,importActivities,comparison,activitySummary,dateAt} from './src/activities.mjs';
@@ -13,19 +13,40 @@ import {createGarmin} from './src/garmin.mjs';
 import {fitActivityData} from './src/fit-core.mjs';
 import {syncStrava,syncStravaIfDue} from './src/strava-sync.mjs';
 import {backupLimit,exportBackup,restoreBackup} from './src/backup.mjs';
-import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './src/plan-weeks.mjs';
+import {advanceToToday,ensurePlanWeek,hasPlanDate,selectPlanWeek,todayIn} from './src/plan-weeks.mjs';
 import {loadSummary,validateAthlete} from './src/training-load.mjs';
 import {performanceData} from './src/performance.mjs';
+import {updateKettlebell} from './public/kettlebell-core.js';
 
 const garmin=createGarmin(process.env.GARMIN_PERSONAL_API_KEY);
+let nextGarminSync=0;
 const dataDir=process.env.DATA_DIR||'data';const store=await openStore(dataDir),vault=await openVault(dataDir);const port=Number(process.env.PORT||3140);let busy=false;
 const base=`http://127.0.0.1:${port}`,mcp=createMcp(vault,base+'/auth/mcp/callback'),strava=createStrava(vault,base+'/auth/strava/callback');
-const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType]));
-function guardRecordedPlan(s,plan){if(plan&&plan.some((p,i)=>s.activities.some(a=>a.planId===p.id)&&(p.type!==s.plan[i].type||p.minutes!==s.plan[i].minutes)))throw Error('提案更動了已有實際結果的課表，請重新規劃尚未執行的課程');}
-function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{configured:garmin.configured()},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
+function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
 async function body(req,max){return JSON.parse((await raw(req,max)).toString()||'{}');}
+async function readActivityFit(activity){
+ const source=activity?.sources.find(entry=>entry.source==='fit');
+ const match=/^([a-f0-9]{64}):(\d+)$/.exec(source?.sourceId??'');
+ if(!match)throw Error('找不到這筆活動的原始 FIT。');
+ const [,hash,index]=match;
+ try{return {bytes:await readFile(join(dataDir,'uploads',hash+'.fit')),index:Number(index),sourceId:source.sourceId};}
+ catch(error){if(error.code!=='ENOENT')throw error;throw Error('本機沒有原始 FIT，請重新匯入。');}
+}
+
+async function workoutForCoach(activity,env){
+ if(!activity||env.LLM_MODE!=='live'||!activity.sources.some(source=>source.source.startsWith('strava')))return activity;
+ if(!activity.sources.some(source=>source.source==='fit')){
+  throw Error('這筆活動的來源是 Strava。若要用外部模型分析，請先匯入原始 FIT。');
+ }
+ const {bytes,index,sourceId}=await readActivityFit(activity);
+ const fit=parseFit(bytes,activity.timezone)[index];
+ if(fit?.sourceId!==sourceId)throw Error('原始 FIT 與活動不符，請重新匯入。');
+ return {...fit,id:activity.id,planId:activity.planId,trainingType:activity.trainingType,kettlebellSessionId:activity.kettlebellSessionId};
+}
+
 http.createServer(async(req,res)=>{
  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
  res.setHeader('Content-Security-Policy',"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' https://tile.openstreetmap.org; frame-ancestors 'none'; base-uri 'none'");
@@ -57,7 +78,7 @@ http.createServer(async(req,res)=>{
   try{
    const b=isFit?{}:await body(req,req.url==='/api/backup-restore'?backupLimit:undefined);let s=store.get();
    if(isFit){
-    const buffer=await raw(req,20*1024*1024);const items=parseFit(buffer,s.context.timezone);const activityIds=[];const imported=importActivities(s,items,activityIds);await mkdir(join(dataDir,'uploads'),{recursive:true});if(imported.added)await writeFile(join(dataDir,'uploads',items[0].fingerprint.split(':')[0]+'.fit'),buffer,{mode:0o600});await store.save(s);return send(res,200,{...view(s),imported,activityIds});
+    const buffer=await raw(req,20*1024*1024);const items=parseFit(buffer,s.context.timezone);const activityIds=[];const imported=importActivities(s,items,activityIds);await mkdir(join(dataDir,'uploads'),{recursive:true});await writeFile(join(dataDir,'uploads',items[0].fingerprint.split(':')[0]+'.fit'),buffer,{mode:0o600});await store.save(s);return send(res,200,{...view(s),imported,activityIds});
    }else if(req.url==='/api/connections'){
     const mode=b.mode;if(!['mock','byok','managed'].includes(mode))throw Error('分析模式不正確');if(mode==='managed')throw Error('AIAC 付費代管尚未開通，不會使用開發者共享 Key');
     const dailyLimit=Number(b.dailyLimit),maxOutputTokens=Number(b.maxOutputTokens);
@@ -82,15 +103,8 @@ http.createServer(async(req,res)=>{
    }else if(req.url==='/api/garmin-sync'){
     const imported=await syncGarmin(s);return send(res,200,{...view(s),imported});
    }else if(req.url==='/api/fit-activity-data'){
-    const activity=s.activities.find(a=>a.id===b.id);
-    const source=activity?.sources.find(entry=>entry.source==='fit');
-    const match=/^([a-f0-9]{64}):(\d+)$/.exec(source?.sourceId??'');
-    if(!match)throw Error('找不到這筆活動的原始 FIT。');
-    const [,hash,index]=match;
-    let bytes;
-    try{bytes=await readFile(join(dataDir,'uploads',hash+'.fit'));}
-    catch(error){if(error.code!=='ENOENT')throw error;throw Error('本機沒有原始 FIT，請重新匯入。');}
-    return send(res,200,fitActivityData(bytes,Number(index)));
+    const {bytes,index}=await readActivityFit(s.activities.find(a=>a.id===b.id));
+    return send(res,200,fitActivityData(bytes,index));
    }else if(req.url==='/api/strava-activity-data'){
     const activity=s.activities.find(a=>a.id===b.id);
     const source=activity?.sources.find(x=>x.source==='strava');
@@ -104,6 +118,7 @@ http.createServer(async(req,res)=>{
     const items=b.activities.map(a=>normalizeActivity(a,source,s.context.timezone));const imported=importActivities(s,items);await store.save(s);return send(res,200,{...view(s),imported});
    }else if(req.url==='/api/activity-link'){
     const a=s.activities.find(a=>a.id===b.id);if(!a||b.planId&&!hasPlanDate(s,b.planId))throw Error('活動或課表不存在');
+    if(a.kettlebellSessionId)throw Error('這筆活動已對應壺鈴課，請先在壺鈴結果解除對應。');
     const types=['Unknown','Zone2','Interval','Tempo','Recovery','Rest','Long Run','Indoor'];if(!types.includes(b.trainingType))throw Error('訓練類型不正確');a.planId=b.planId||null;a.trainingType=b.trainingType;
    }else if(req.url==='/api/activity-delete'){
     s.activities=s.activities.filter(a=>a.id!==b.id);
@@ -114,10 +129,14 @@ http.createServer(async(req,res)=>{
     try{new Intl.DateTimeFormat('en',{timeZone:b.context.timezone});}catch{throw Error('請提供有效時區');}
     s.profile=Object.fromEntries(['name','goal','experience','preferences','constraints','weeklyMinutes'].map(k=>[k,b.profile[k]]));s.profile.weeklyMinutes=Number(s.profile.weeklyMinutes);
     s.context=Object.fromEntries(['date','timezone','location','minutes','sleep','feeling','weather','motivation','equipment'].map(k=>[k,b.context[k]??'']));s.context.minutes=Number(s.context.minutes);
+    if(['follow','adjust'].includes(b.context.trainingIntent))s.context.trainingIntent=b.context.trainingIntent;
    }else if(req.url==='/api/athlete'){
     s.athlete=validateAthlete(b.athlete);
    }else if(req.url==='/api/backup-restore'){
     s=restoreBackup(s,b);
+   }else if(req.url==='/api/kettlebell'){
+    updateKettlebell(s,b);
+    if(b.action==='save')ensurePlanWeek(s,b.date);
    }else if(req.url==='/api/plan-week'){
     selectPlanWeek(s,b.date);
    }else if(req.url==='/api/plan'){
@@ -128,13 +147,14 @@ http.createServer(async(req,res)=>{
     if(['morning','chat'].includes(b.kind)&&!s.plan.some(day=>day.id===s.context.date))throw Error('情境日期不在目前選取的課表。請切換到對應週次後再詢問教練。');
     if(typeof b.message!=='string'||b.message.length>6000)throw Error('訊息長度不正確');
     const env=llmEnvironment(s.connections.llm,vault.get());let attempt;
-    const analysisActivity=b.activityId?s.activities.find(a=>a.id===b.activityId):null;if(b.activityId&&!analysisActivity)throw Error('找不到指定活動');
-    if(analysisActivity&&env.LLM_MODE==='live'&&analysisActivity.sources.some(x=>x.source.startsWith('strava')))throw Error('Strava 匯入資料目前限本地摘要與課表對照；官方 MCP 的 AI 存取需依服務商支援與資料政策使用，不會直接送至自訂 LLM');
+    const selected=b.activityId?s.activities.find(a=>a.id===b.activityId):null;if(b.activityId&&!selected)throw Error('找不到指定活動');
+    const analysisActivity=await workoutForCoach(selected,env);
     if(env.LLM_MODE==='live'){
      const day=dateAt(new Date(),s.context.timezone);const count=s.connections.usage.filter(u=>u.day===day).length;if(count>=s.connections.llm.dailyLimit)throw Error('今日 LLM 呼叫上限已達；請明天再試或調整使用額度');
      attempt={id:randomUUID(),day,at:new Date().toISOString(),status:'attempted',model:env.LLM_MODEL,maxOutputTokens:s.connections.llm.maxOutputTokens};s.connections.usage.push(attempt);await store.save(s);
     }
-    let result;try{result=await coach({...s,analysisActivity},b.message,b.kind,env);guardRecordedPlan(s,result.proposedPlan);}catch(e){if(attempt){attempt.status='failed';await store.save(s);}throw e;}
+    const activities=analysisActivity!==selected?s.activities.map(activity=>activity.id===selected.id?analysisActivity:activity):s.activities;
+    let result;try{result=await coach({...s,activities,analysisActivity},b.message,b.kind,env);guardRecordedPlan(s,result.proposedPlan);}catch(e){if(attempt){attempt.status='failed';await store.save(s);}throw e;}
     if(attempt){attempt.status='success';attempt.tokens=result.usage;}
     const id=randomUUID();
     s.messages.push({role:'user',text:b.message,at:new Date().toISOString()},{role:'assistant',text:result.text,at:new Date().toISOString(),recommendationId:id});
@@ -155,13 +175,15 @@ http.createServer(async(req,res)=>{
    await store.save(s);send(res,200,view(s));
   }catch(e){send(res,400,{error:e.name==='TimeoutError'?'LLM 回應逾時，未修改課表':e.message});}finally{busy=false;}return;
  }
- const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/route-map.js':['route-map.js','text/javascript'],'/vendor/leaflet.js':['../node_modules/leaflet/dist/leaflet.js','text/javascript'],'/vendor/leaflet.css':['../node_modules/leaflet/dist/leaflet.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml'],'/assets/fonts/archivo-latin.woff2':['assets/fonts/archivo-latin.woff2','font/woff2']};
- if(req.method==='GET'&&files[req.url]){const [file,type]=files[req.url];res.writeHead(200,{'Content-Type':type.startsWith('font/')?type:type+'; charset=utf-8'});res.end(await readFile(new URL('./public/'+file,import.meta.url)));}else send(res,404,{error:'Not found'});
+ const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/route-map.js':['route-map.js','text/javascript'],'/kettlebell-core.js':['kettlebell-core.js','text/javascript'],'/kettlebell-ui.js':['kettlebell-ui.js','text/javascript'],'/kettlebell-guidance.js':['kettlebell-guidance.js','text/javascript'],'/kettlebell-demo.js':['kettlebell-demo.js','text/javascript'],'/kettlebell-motion.js':['kettlebell-motion.js','text/javascript'],'/training-research.js':['training-research.js','text/javascript'],'/vendor/three.module.js':['../node_modules/three/build/three.module.js','text/javascript'],'/vendor/three.core.js':['../node_modules/three/build/three.core.js','text/javascript'],'/vendor/leaflet.js':['../node_modules/leaflet/dist/leaflet.js','text/javascript'],'/vendor/leaflet.css':['../node_modules/leaflet/dist/leaflet.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml'],'/assets/fonts/archivo-latin.woff2':['assets/fonts/archivo-latin.woff2','font/woff2']};
+ if(req.method==='GET'&&Object.hasOwn(files,req.url)){
+  const [file,type]=files[req.url];
+  try{const contents=await readFile(new URL('./public/'+file,import.meta.url));res.writeHead(200,{'Content-Type':type.startsWith('font/')?type:type+'; charset=utf-8'});res.end(contents);}
+  catch{send(res,404,{error:'找不到本機資源。若剛更新 AIAC，請重新安裝依賴。'});}
+ }else send(res,404,{error:'Not found'});
 }).listen(port,'127.0.0.1',()=>console.log(`AIAC running at http://127.0.0.1:${port} · ${store.get().connections.llm.mode} · local data only`));
 
-let nextGarminSync=0;
-async function syncGarmin(s){
- nextGarminSync=Date.now()+15*60*1000;
+async function importGarminActivities(s){
  const imported={added:0,duplicates:0,files:0,withoutFit:0,more:false};
  const known=new Set(s.activities.flatMap(a=>a.sources.filter(source=>source.source==='garmin-connect').map(source=>source.sourceId)));
  let downloads=0;
@@ -193,6 +215,25 @@ async function syncGarmin(s){
   if(start===120)imported.more=true;
  }
  return imported;
+}
+
+async function syncGarmin(s){
+ const status=s.connections.garmin??={};
+ try{
+  const imported=await importGarminActivities(s);
+  status.lastSync=new Date().toISOString();
+  delete status.lastError;
+  nextGarminSync=Date.now()+15*60*1000;
+  await store.save(s);
+  return imported;
+ }catch(error){
+  const rejected=error.code==='GARMIN_KEY_REJECTED';
+  nextGarminSync=rejected?Infinity:Date.now()+15*60*1000;
+  status.lastError=error.name==='TimeoutError'?'Garmin 同步逾時，稍後會自動重試。'
+   :error.message==='fetch failed'?'暫時無法連到 Garmin，稍後會自動重試。':error.message;
+  await store.save(s);
+  throw Error(status.lastError);
+ }
 }
 
 async function backgroundSync(){

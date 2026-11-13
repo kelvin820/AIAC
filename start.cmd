@@ -2,6 +2,7 @@
 cd /d "%~dp0"
 if not exist node_modules\@garmin\fitsdk\package.json goto install
 if not exist node_modules\leaflet\package.json goto install
+if not exist node_modules\three\package.json goto install
 goto run
 
 :install

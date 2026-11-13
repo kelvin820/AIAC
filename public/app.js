@@ -1,4 +1,6 @@
 import {clearRouteMap, showRouteMap} from './route-map.js';
+import {plannedSeconds,sessionTotals} from './kettlebell-core.js';
+import {circuitButton,findCircuit,findCircuitResult,mountKettlebell} from './kettlebell-ui.js';
 
 let state;let pending=false;
 let previewActivityId;
@@ -22,7 +24,7 @@ function formatPace(seconds) {
 }
 function suggestedActivity(day, comparison, activities) {
  if(day.minutes<=0||day.type==='Rest'||comparison.activityIds.length)return null;
- const sameDay=activities.filter(activity=>activity.date===day.id&&activity.durationSeconds>0);
+ const sameDay=activities.filter(activity=>activity.date===day.id&&activity.durationSeconds>0&&!activity.kettlebellSessionId);
  return sameDay.length===1&&!sameDay[0].planId?sameDay[0]:null;
 }
 
@@ -31,6 +33,36 @@ function renderPlanActivitySuggestion(day, comparison) {
  if(!activity)return '';
  return `<span>${esc(activity.name)} · ${(activity.durationSeconds/60).toFixed(1)} 分鐘</span>
   <button type="button" class="secondary" data-plan-link-activity="${esc(activity.id)}" data-plan-link-date="${esc(day.id)}">對應這筆活動</button>`;
+}
+
+function renderDailyOverview() {
+ const date=planWeekDate('today');
+ $('#today-date').textContent=new Intl.DateTimeFormat('zh-TW',{dateStyle:'full',timeZone:state.context.timezone}).format(new Date());
+ const plans=[...state.plan,...Object.values(state.planHistory??{}).flat()];
+ const day=plans.find(item=>item.id===date);
+ const linked=state.activities.filter(activity=>activity.planId===date);
+ const todayActivities=state.activities.filter(activity=>activity.date===date);
+ const suggestion=day?renderPlanActivitySuggestion(day,{activityIds:linked.map(activity=>activity.id)}):'';
+ const recent=state.activities.filter(activity=>activity.sources.some(source=>['garmin-connect','strava'].includes(source.source)))
+  .sort((a,b)=>b.startedAt.localeCompare(a.startedAt)).slice(0,3);
+ const card=activity=>`<li><button type="button" class="activity-shortcut" data-open-activity="${esc(activity.id)}">
+  <strong>${esc(activity.name)}</strong>
+  <span>${esc(activity.date.slice(5))} · ${(activity.durationSeconds/60).toFixed(1)} 分鐘</span>
+  </button><span class="status-pill ${activity.planId||activity.kettlebellSessionId?'is-linked':''}">${activity.kettlebellSessionId?'已對應壺鈴':activity.planId?'已對應':'待對應'}</span></li>`;
+ const remaining=todayActivities.filter(activity=>!activity.planId&&!activity.kettlebellSessionId);
+ const circuit=findCircuit(state,date), result=findCircuitResult(state,date), active=state.kettlebell?.active;
+ $('#daily-overview').innerHTML=`<h2>今日課表</h2>${circuit?`
+  <div class="session-title">全身壺鈴間歇</div>
+  <p class="session-detail">預計 ${circuit.rounds} 輪 · ${(plannedSeconds(circuit)/60).toFixed(1)} 分鐘${result?`<br>實際 ${sessionTotals(result).rounds} / ${circuit.rounds} 完整輪`:' · '+(active?.plan.date===date?'訓練中':'待開始')}</p>
+  ${circuit.original?`<p class="small">原定 ${esc(circuit.original.type)} · ${circuit.original.minutes} 分鐘</p>`:''}`:`
+  <div class="session-title">${day?esc(day.type==='Rest'?'休息':day.type):'尚未安排'}</div>
+  <p class="session-detail">${day?`預計 ${day.minutes} 分鐘`:'可從週課表新增今天的訓練。'}
+  ${linked.length?` · 實際 ${linked.reduce((sum,activity)=>sum+activity.durationSeconds/60,0).toFixed(1)} 分鐘`:''}</p>
+  ${suggestion?`<div class="session-match">${suggestion}</div>`:remaining.length?`<ul class="daily-activities">${remaining.map(card).join('')}</ul>`:''}`}
+  <div class="actions kb-entry">${circuitButton(active?.plan.date??date,active?'繼續壺鈴訓練':result?'查看壺鈴結果':circuit?'開啟壺鈴課':day?.minutes>0?'改做壺鈴間歇':'安排壺鈴間歇',circuit||active?'primary':'secondary')}<button type="button" class="text-button" data-tab="training-research">訓練研究 ↗</button></div>
+  <button type="button" class="text-button session-link" data-tab="plan">開啟週課表 →</button>`;
+ $('#daily-recent').innerHTML=recent.length?`<ul class="daily-activities">${recent.map(card).join('')}</ul>`
+  :'<p class="small">尚無同步活動。<button type="button" class="text-button" data-tab="connections">連接裝置 →</button></p>';
 }
 function renderStravaFacts(activity) {
  const metrics=activity.stravaMetrics??{};
@@ -152,6 +184,28 @@ function renderLapFacts(laps,label='FIT 分圈') {
   </table></div></details>`;
 }
 function notice(text){$('#notice').textContent=text;}
+function showPage(id){
+ const previous=document.querySelector('.page:not([hidden])');
+ for(const page of document.querySelectorAll('.page'))page.hidden=page.id!==id;
+ for(const button of document.querySelectorAll('nav [data-tab]')){
+  const active=button.dataset.tab===id;
+  button.classList.toggle('active',active);
+  if(active)button.setAttribute('aria-current','page');
+  else button.removeAttribute('aria-current');
+ }
+ if(previous?.id!==id)window.scrollTo(0,0);
+}
+
+$('.section-switcher').addEventListener('click',event=>{
+ const selected=event.target.closest('[data-settings-panel]');
+ if(!selected)return;
+ for(const button of $('.section-switcher').querySelectorAll('button')){
+  button.setAttribute('aria-pressed',String(button===selected));
+ }
+ for(const panel of document.querySelectorAll('[data-settings-content]')){
+  panel.hidden=panel.dataset.settingsContent!==selected.dataset.settingsPanel;
+ }
+});
 async function api(path,body){if(globalThis.AIAC_DEMO)return globalThis.AIAC_DEMO.request(path,body);const res=await fetch('/api/'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await res.json();if(!res.ok)throw Error(data.error||'無法連接伺服器');return data;}
 async function action(fn){if(pending)return;pending=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();}catch(e){notice(e.message);}finally{pending=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);globalThis.AIAC_DEMO?.decorate();}}
 function formValue(id){return Object.fromEntries(new FormData($(id)));}
@@ -161,6 +215,95 @@ function planWeekDate(direction){
  day.setUTCDate(day.getUTCDate()+Number(direction));
  return day.toISOString().slice(0,10);
 }
+const kettlebell=mountKettlebell({getState:()=>state,today:()=>planWeekDate('today'),showPage,notify:notice,escape:esc,submit:(command,onSaved)=>action(async()=>{
+ state=await api('kettlebell',command);
+ onSaved?.();render();
+ const result=state.kettlebell?.sessions.find(session=>session.id===command.id);
+ if(command.action==='match-activity'){notice('已對應壺鈴課。裝置資料保留，週總時間只算一次。');return;}
+ if(command.action==='unmatch-activity'){notice('已解除對應。裝置活動重新單獨計入週總時間。');return;}
+ if(result)kettlebell.openResult(result.plan.date);
+ notice(command.action==='save'?'壺鈴課已加入週課表。':command.action==='remove'?'已移除壺鈴課，原週課表可見。':result?'壺鈴結果已保存，週課表已更新。':command.action==='finish'?'已結束，沒有可保存的訓練時間。':'');
+})});
+function setWeekEditing(editing){
+ $('#plan-rows').hidden=editing;
+ $('#plan-form').hidden=!editing;
+ $('#week-edit').hidden=editing;
+ $('#week-log-activity').hidden=editing;
+ $('#manual-activity').hidden=editing;
+}
+
+function renderWeekEditor(){
+ $('#plan-edit-rows').innerHTML=state.plan.map(day=>`<div class="plan-row">
+  <strong>${esc(day.id)}${findCircuit(state,day.id)?' · 壺鈴課下的原課表':''}</strong>
+  <label>預計課程<select name="type">${types.map(type=>`<option ${type===day.type?'selected':''}>${type}</option>`).join('')}</select></label>
+  <label>預計分鐘<input name="minutes" type="number" min="0" max="180" value="${day.minutes}" required></label>
+ </div>`).join('');
+}
+
+function linkedMinutes(day){
+ const session=findCircuitResult(state,day.planId);
+ if(session)return sessionTotals(session).totalSeconds/60;
+ return findCircuit(state,day.planId)?0:day.actualMinutes;
+}
+
+function renderWeeklyPlan(){
+ const date=planWeekDate('today');
+ const [first]=state.plan;
+ $('#plan-version').textContent=`${first.id} 至 ${state.plan.at(-1).id}`;
+ const planned=state.budget.planned;
+ const actual=state.comparison.reduce((sum,day)=>sum+linkedMinutes(day),0);
+ const weekDates=new Set(state.plan.map(day=>day.id));
+ const unlinked=state.activities.filter(activity=>!activity.planId&&!activity.kettlebellSessionId&&weekDates.has(activity.date)).length;
+ const sessionsWithDevices=new Set(state.activities.map(activity=>activity.kettlebellSessionId).filter(Boolean));
+ $('#weekly-comparison').innerHTML=`<dl class="week-totals">
+  <div><dt>整週時間完成度</dt><dd>${planned?(actual/planned*100).toFixed(0)+'%':'—'}</dd></div>
+  <div><dt>預計訓練</dt><dd>${Number(planned.toFixed(1))} <small>分</small></dd></div>
+  <div><dt>已對應的實際訓練</dt><dd>${actual.toFixed(1)} <small>分</small></dd></div>
+ </dl>${unlinked?`<p class="week-unlinked">本週有 ${unlinked} 筆活動待對應。<button type="button" class="text-button" data-tab="activity-log">查看活動 →</button></p>`:''}`;
+ $('#plan-rows').innerHTML=state.plan.map((day,index)=>{
+  const result=state.comparison[index];
+  const recorded=result.activityIds.length>0;
+  const today=day.id===date;
+  const ratio=recorded&&result.ratio!==null?`${(result.ratio*100).toFixed(0)}%`:null;
+  const status=recorded?result.status:day.completed?'舊版已勾選':day.minutes===0?'—':'待記錄';
+  const types=result.actualTypes.map(type=>type==='Unknown'?'目的待確認':type);
+  const circuit=findCircuit(state,day.id), session=findCircuitResult(state,day.id), stats=session?sessionTotals(session):null;
+  const weekday=['週一','週二','週三','週四','週五','週六','週日'][index];
+  if(circuit)return `<article class="week-day${today?' is-today':''} kb-week-day">
+   <div class="week-day-date"><strong>${weekday}</strong><span>${esc(day.id.slice(5))}${today?' · 今天':''}</span></div>
+   <div class="week-day-planned"><span class="week-label">預計</span><strong>全身壺鈴間歇</strong><span>${circuit.rounds} 輪 · ${(plannedSeconds(circuit)/60).toFixed(1)} 分鐘</span>${circuit.original?`<span>原定 ${esc(circuit.original.type)} · ${circuit.original.minutes} 分鐘</span>`:''}</div>
+   <div class="week-day-actual"><span class="week-label">實際</span><strong>${stats?`${(stats.totalSeconds/60).toFixed(1)} 分鐘`:'—'}</strong><span>${stats?`動作 ${(stats.workSeconds/60).toFixed(1)} 分鐘`:state.kettlebell.active?.plan.date===day.id?'訓練中':'待記錄'}</span>${session&&sessionsWithDevices.has(session.id)?'<span>已對應裝置資料</span>':''}${recorded?`<span>原課另有 ${result.actualMinutes.toFixed(1)} 分鐘已對應活動</span>`:''}</div>
+   <div class="week-day-progress"><span class="week-label">完整輪數</span><strong>${stats?`${stats.rounds} / ${circuit.rounds} 輪`:'—'}</strong>${circuitButton(day.id,stats?'查看結果':'查看壺鈴課')}</div></article>`;
+  return `<article class="week-day${today?' is-today':''}">
+   <div class="week-day-date"><strong>${weekday}</strong>
+    <span>${esc(day.id.slice(5))}${today?' · 今天':''}</span></div>
+   <div class="week-day-planned"><span class="week-label">預計</span><strong>${esc(day.type==='Rest'?'休息':day.type)}</strong><span>${day.minutes} 分鐘</span></div>
+   <div class="week-day-actual"><span class="week-label">實際</span><strong>${recorded?`${result.actualMinutes.toFixed(1)} 分鐘`:'—'}</strong>
+    ${recorded?`<span>${esc(types.join('、'))}${result.distanceMeters===null?'':` · ${(result.distanceMeters/1000).toFixed(2)} km`}</span>`:''}
+    ${renderPlanActivitySuggestion(day,result)}</div>
+   <div class="week-day-progress"><span class="week-label">時間完成度</span><strong>${ratio??esc(status)}</strong>
+    ${recorded?`<span>${esc(result.stimulus)}</span>`:''}${day.id>=date?circuitButton(day.id,day.minutes>0?'改做壺鈴':'排壺鈴課','text-button'):''}</div>
+  </article>`;
+ }).join('');
+ renderWeekEditor();
+ setWeekEditing(false);
+}
+
+$('#week-edit').addEventListener('click',()=>{
+ setWeekEditing(true);
+ $('#plan-edit-rows select')?.focus();
+});
+$('#week-edit-cancel').addEventListener('click',()=>{
+ renderWeekEditor();
+ setWeekEditing(false);
+ $('#week-edit').focus();
+});
+$('#week-log-activity').addEventListener('click',()=>{
+ const manual=$('#manual-activity');
+ manual.open=true;
+ manual.scrollIntoView({block:'start'});
+ manual.querySelector('select').focus({preventScroll:true});
+});
 document.querySelector('.week-navigation').addEventListener('click',event=>{
  const button=event.target.closest('[data-plan-week]');
  if(!button||!state)return;
@@ -172,24 +315,39 @@ document.querySelector('.week-navigation').addEventListener('click',event=>{
  action(async()=>{state=await api('plan-week',{date:planWeekDate(button.dataset.planWeek)});render();notice('已開啟 '+state.plan[0].id+' 這一週的課表。');});
 });
 function fill(id,value){for(const [k,v]of Object.entries(value)){const input=$(id).elements.namedItem(k);if(input)input.value=v;}}
-function settings(){return {profile:{...state.profile,...formValue('#profile-form')},context:{...state.context,...formValue('#context-form')}};}
-function planDiff(r){if(!r.proposedPlan)return '';const before=r.planBefore,after=r.proposedPlan;const sum=a=>a.reduce((n,d)=>n+d.minutes,0);return `<div class="tag">課表提案 · ${r.status==='accepted'?'已接受':r.status==='rejected'?'已拒絕':'等待你確認'}</div>${after.map((d,i)=>d.type!==before[i].type||d.minutes!==before[i].minutes?`<div class="diff">${esc(d.id)}<br>${esc(before[i].type)} ${before[i].minutes} 分 → <strong>${esc(d.type)} ${d.minutes} 分</strong></div>`:'').join('')}<p class="small">整週規劃 ${sum(before)} → ${sum(after)} 分鐘 · 品質課 ${before.filter(d=>['Interval','Tempo'].includes(d.type)).length} → ${after.filter(d=>['Interval','Tempo'].includes(d.type)).length} 次<br>時間相同不代表訓練刺激等效。</p>${r.status==='pending'?`<div class="actions"><button class="primary" data-decision="accepted" data-id="${esc(r.id)}">接受並套用課表</button><button class="secondary" data-decision="rejected" data-id="${esc(r.id)}">保留原課表</button></div>`:''}`;}
-const typeNames={Zone2:'Zone2',Recovery:'恢復',Tempo:'Tempo',Interval:'Interval','Long Run':'長跑',Indoor:'室內',Rest:'休息'};
-function weekActuals(){return state.plan.map(d=>state.activities.filter(a=>a.date===d.id).reduce((n,a)=>n+a.durationSeconds/60,0));}
+const typeNames={Zone2:'Zone2',Recovery:'恢復',Tempo:'Tempo',Interval:'Interval','Long Run':'長跑',Indoor:'室內',Rest:'休息',Kettlebell:'壺鈴'};
+function effectiveDay(day){
+ const circuit=findCircuit(state,day.id);
+ return circuit?{...day,type:'Kettlebell',minutes:plannedSeconds(circuit)/60}:day;
+}
+function dayActivities(date){
+ const activities=state.activities.filter(a=>a.date===date&&!a.kettlebellSessionId);
+ const session=findCircuitResult(state,date);
+ if(session)activities.push({id:session.id,date,name:'全身壺鈴間歇',durationSeconds:sessionTotals(session).totalSeconds,kettlebell:true});
+ return activities;
+}
 function weekChart(){
- const actual=weekActuals(),planned=state.plan.map(d=>d.minutes);
+ const days=state.plan.map(effectiveDay);
+ const actual=days.map(day=>dayActivities(day.id).reduce((sum,a)=>sum+a.durationSeconds/60,0));
+ const planned=days.map(day=>day.minutes);
  const top=Math.max(30,Math.ceil(Math.max(...planned,...actual)/30)*30),W=560,H=200,L=30,R=6,T=12,B=28,ph=H-T-B,slot=(W-L-R)/7;
  const y=v=>T+ph-(v/top)*ph;
  const grid=[0,top/2,top].map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('');
- const bars=state.plan.map((d,i)=>{const x=L+i*slot,pw=slot*.56,px=x+(slot-pw)/2,aw=slot*.34,ax=x+(slot-aw)/2,c=state.comparison[i],t=c.actualTypes.find(t=>t!=='Unknown')||d.type;
+ const bars=days.map((d,i)=>{const x=L+i*slot,pw=slot*.56,px=x+(slot-pw)/2,aw=slot*.34,ax=x+(slot-aw)/2,c=state.comparison[i],t=d.type==='Kettlebell'?d.type:c.actualTypes.find(t=>t!=='Unknown')||d.type;
   const plan=d.minutes?`<rect class="plan" x="${px}" y="${y(d.minutes)}" width="${pw}" height="${(d.minutes/top)*ph}" rx="3"/>`:'';
   const act=actual[i]?`<rect class="bar" data-type="${esc(t)}" x="${ax}" y="${y(actual[i])}" width="${aw}" height="${(actual[i]/top)*ph}" rx="2"><title>${esc(d.id)} 實際 ${actual[i].toFixed(1)} 分鐘</title></rect>`:'';
   return plan+act+`<text class="axis${d.id===state.context.date?' today':''}" x="${x+slot/2}" y="${H-8}" text-anchor="middle">${'一二三四五六日'[i]}</text>`;}).join('');
- const used=[...new Set(state.plan.map(d=>d.type).filter(t=>t!=='Rest'))];
+ const used=[...new Set(days.map(d=>d.type).filter(t=>t!=='Rest'))];
  return `<svg class="week-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="本週每日預計與實際分鐘">${grid}${bars}</svg><div class="chart-legend"><span><i class="planned"></i>預計</span>${used.map(t=>`<span><i data-type="${esc(t)}"></i>${esc(typeNames[t]||t)}</span>`).join('')}</div>`;
 }
 function renderKpis(b){
- const linked=state.comparison.reduce((n,c)=>n+c.actualMinutes,0),pct=b.planned?Math.round(linked/b.planned*100):null,done=state.comparison.filter(c=>c.activityIds.length&&state.plan.find(d=>d.id===c.planId).minutes>0).length,days=state.plan.filter(d=>d.minutes>0).length;
+ const linked=state.comparison.reduce((sum,day)=>sum+linkedMinutes(day),0);
+ const pct=b.planned?Math.round(linked/b.planned*100):null;
+ const planned=state.plan.map(effectiveDay).filter(day=>day.minutes>0);
+ const done=planned.filter(day=>day.type==='Kettlebell'
+  ?findCircuitResult(state,day.id)&&sessionTotals(findCircuitResult(state,day.id)).rounds===findCircuit(state,day.id).rounds
+  :state.comparison.find(result=>result.planId===day.id)?.ratio>=1).length;
+ const days=planned.length;
  const kpiIcon=d=>`<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;$('#kpis').innerHTML=`<div class="kpi lead" data-ic="pulse"><span>${kpiIcon('<path d="M3 12h4l2-6 4 12 2-6h6"/>')}本週實際</span><strong>${b.completed.toFixed(0)}<small>/ ${b.target} 分鐘</small></strong><em>週目標 ${b.target?Math.round(b.completed/b.target*100):0}%</em></div><div class="kpi" data-ic="plan"><span>${kpiIcon('<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/>')}課表規劃</span><strong>${b.planned}<small>分鐘</small></strong><em>${days} 個訓練日</em></div><div class="kpi" data-ic="target"><span>${kpiIcon('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8"/>')}課表完成度</span><strong>${pct===null?'—':pct}<small>%</small></strong><em>已完成 ${done} / ${days} 天</em></div><div class="kpi" data-ic="bolt"><span>${kpiIcon('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>')}品質課</span><strong>${b.quality}<small>次</small></strong><em>Interval／Tempo</em></div>`;
 }
 const loadSourceNames={power:'功率 TSS','heart-rate':'心率 HRSS',pace:'配速分數','estimate-heart-rate':'心率估算','estimate-duration':'時間估算',none:'無'};
@@ -225,7 +383,7 @@ function pmcChart(points){
 }
 function weeklyVolumeChart(acts){
  const weeks=[...new Set(acts.map(a=>a.week))].sort();if(!weeks.length)return '<p class="muted">這段期間沒有活動。</p>';
- const order=['Zone2','Recovery','Tempo','Interval','Long Run','Indoor','Unknown'];
+ const order=['Zone2','Recovery','Tempo','Interval','Long Run','Indoor','Kettlebell','Unknown'];
  const byWeek=weeks.map(w=>{const t={};for(const a of acts.filter(a=>a.week===w))t[a.type]=(t[a.type]||0)+a.minutes;return {w,t,total:Object.values(t).reduce((n,v)=>n+v,0)};});
  const W=560,H=220,L=36,R=6,T=10,B=28,pw=W-L-R,ph=H-T-B,top=Math.max(60,Math.ceil(Math.max(...byWeek.map(w=>w.total))/60)*60),slot=pw/weeks.length,bw=Math.min(36,slot*.65),y=v=>T+ph-v/top*ph,every=Math.ceil(weeks.length/8);
  const bars=byWeek.map((w,i)=>{let acc=0;const x=L+i*slot+(slot-bw)/2;return order.filter(k=>w.t[k]).map(k=>{const h=w.t[k]/top*ph;acc+=w.t[k];return `<rect class="bar" data-type="${esc(k)}" x="${x.toFixed(1)}" y="${y(acc).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"><title>${w.w} 週 · ${esc(typeNames[k]||'未分類')} ${Math.round(w.t[k])} 分鐘</title></rect>`;}).join('')+(i%every===0||i===weeks.length-1?`<text class="axis" x="${(x+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${shortDate(w.w)}</text>`:'');}).join('');
@@ -259,16 +417,15 @@ function renderPerformance(){
  $('#intensity').innerHTML=intensityPanel(P,acts);
  $('#bests').innerHTML=bestsPanel(P.bests);
 }
-document.querySelector('.period-switch').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b||!state)return;perfPeriod=b.dataset.period==='all'?'all':Number(b.dataset.period);renderPerformance();});
+document.querySelector('#performance .period-switch').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b||!state)return;perfPeriod=b.dataset.period==='all'?'all':Number(b.dataset.period);renderPerformance();});
 let calMonth=null,calSelected=null,calWorkout=null;
 const fmtMin=m=>m>=60?`${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}`:`${Math.round(m)}′`;
-function planDayMap(){return new Map([...Object.values(state.planHistory??{}).flat(),...state.plan].map(d=>[d.id,d]));}
+function planDayMap(){return new Map([...Object.values(state.planHistory??{}).flat(),...state.plan].map(d=>[d.id,effectiveDay(d)]));}
 function monthStart(ym){return ym+'-01';}
 function shiftMonth(ym,n){const [y,m]=ym.split('-').map(Number),d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,7);}
 function renderCalendar(){
  if(!state)return;calMonth??=state.context.date.slice(0,7);
- const plans=planDayMap(),perf=new Map((state.performance?.activities??[]).map(a=>[a.id,a])),byDate=new Map();
- for(const a of state.activities)(byDate.get(a.date)??byDate.set(a.date,[]).get(a.date)).push(a);
+ const plans=planDayMap(),perf=new Map((state.performance?.activities??[]).map(a=>[a.id,a]));
  const first=monthStart(calMonth),firstDow=(new Date(first+'T12:00:00Z').getUTCDay()+6)%7;let cursor=addDays(first,-firstDow);
  const [y,m]=calMonth.split('-');$('#cal-title').textContent=`${y} 年 ${Number(m)} 月`;
  let html=['一','二','三','四','五','六','日','週合計'].map(d=>`<div class="cal-head" role="columnheader">${d}</div>`).join('');
@@ -277,10 +434,10 @@ function renderCalendar(){
   if(w>0&&cursor.slice(0,7)!==calMonth)break;
   let weekMin=0,weekPlan=0,weekLoad=0;
   for(let d=0;d<7;d++,cursor=addDays(cursor,1)){
-   const date=cursor,inMonth=date.slice(0,7)===calMonth,plan=plans.get(date),acts=byDate.get(date)??[];
+   const date=cursor,inMonth=date.slice(0,7)===calMonth,plan=plans.get(date),acts=dayActivities(date);
    const mins=acts.reduce((n,a)=>n+a.durationSeconds/60,0),load=acts.reduce((n,a)=>n+(state.load?.perActivity?.[a.id]?.score??0),0);
    weekMin+=mins;weekLoad+=load;weekPlan+=plan?.minutes??0;if(inMonth){monthMin+=mins;monthPlan+=plan?.minutes??0;monthCount+=acts.length;}
-   const planChip=plan&&plan.type!=='Rest'&&plan.minutes?`<span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span>`:plan?.type==='Rest'?'<span class="cal-rest">休息</span>':'';
+   const planChip=plan&&plan.type!=='Rest'&&plan.minutes?`<span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${fmtMin(plan.minutes)}</span>`:plan?.type==='Rest'?'<span class="cal-rest">休息</span>':'';
    const chips=acts.slice(0,2).map(a=>{const t=perf.get(a.id)?.type??'Unknown';return `<span class="cal-act" data-type="${esc(t)}">${fmtMin(a.durationSeconds/60)}${a.distanceMeters?` · ${(a.distanceMeters/1000).toFixed(1)}k`:''}</span>`;}).join('')+(acts.length>2?`<span class="cal-more">+${acts.length-2}</span>`:'');
    html+=`<button type="button" class="cal-cell${inMonth?'':' out'}${date===state.context.date?' today':''}${date===calSelected?' selected':''}" data-cal-date="${date}" aria-label="${date}${acts.length?`，${acts.length} 筆活動`:''}"><span class="cal-num">${Number(date.slice(8))}</span>${planChip}${chips}${load?`<span class="cal-load">${Math.round(load)}</span>`:''}</button>`;
   }
@@ -292,9 +449,17 @@ function renderCalendar(){
 }
 function renderCalDay(){
  const panel=$('#cal-day');if(!calSelected){panel.hidden=true;return;}
- const plan=planDayMap().get(calSelected),acts=state.activities.filter(a=>a.date===calSelected);
+ const plan=planDayMap().get(calSelected),acts=dayActivities(calSelected);
+ const circuit=findCircuit(state,calSelected),session=findCircuitResult(state,calSelected);
+ const planned=plan?'<p class="cal-plan-line" data-type="'+esc(plan.type)+'"><strong>'+esc(typeNames[plan.type]||plan.type)+'</strong> '+fmtMin(plan.minutes)+'</p>':'<p class="muted">這天不在任何已建立的週課表內。</p>';
+ const rows=acts.map(activity=>{
+  if(activity.kettlebell)return circuitButton(calSelected,'查看壺鈴結果 · '+fmtMin(activity.durationSeconds/60));
+  const load=state.load?.perActivity?.[activity.id];
+  const details=[fmtMin(activity.durationSeconds/60),activity.distanceMeters?(activity.distanceMeters/1000).toFixed(2)+' km':'',activity.avgHeartRate?activity.avgHeartRate+' bpm':''].filter(Boolean).join(' · ');
+  return '<button type="button" class="cal-act-row" data-workout="'+esc(activity.id)+'"><span><strong>'+esc(activity.name)+'</strong><small>'+details+'</small></span><em>'+(load?'負荷 '+load.score:'')+'</em></button>';
+ }).join('');
  panel.hidden=false;
- panel.innerHTML=`<div class="card-title"><h2>${calSelected} 週${'一二三四五六日'[(new Date(calSelected+'T12:00:00Z').getUTCDay()+6)%7]}</h2><button type="button" class="secondary" data-cal-close>關閉</button></div><div class="cal-day-grid"><div><h3>計畫</h3>${plan?`<p class="cal-plan-line" data-type="${esc(plan.type)}"><strong>${esc(typeNames[plan.type]||plan.type)}</strong> ${plan.minutes} 分鐘</p>`:'<p class="muted">這天不在任何已建立的週課表內。</p>'}</div><div><h3>實際活動</h3>${acts.length?acts.map(a=>{const l=state.load?.perActivity?.[a.id];return `<button type="button" class="cal-act-row" data-workout="${esc(a.id)}"><span><strong>${esc(a.name)}</strong><small>${fmtMin(a.durationSeconds/60)}${a.distanceMeters?` · ${(a.distanceMeters/1000).toFixed(2)} km`:''}${a.avgHeartRate?` · ${a.avgHeartRate} bpm`:''}</small></span><em>${l?`負荷 ${l.score}`:''}</em></button>`;}).join(''):'<p class="muted">沒有活動紀錄。</p>'}</div></div>`;
+ panel.innerHTML='<div class="card-title"><h2>'+calSelected+'</h2><button type="button" class="secondary" data-cal-close>關閉</button></div><div class="cal-day-grid"><div><h3>計畫</h3>'+planned+(circuit&&!session?circuitButton(calSelected,'查看壺鈴課'):'')+'</div><div><h3>實際活動</h3>'+(rows||'<p class="muted">沒有活動紀錄。</p>')+'</div></div>';
 }
 function renderWorkoutDetail(){
  const panel=$('#workout-detail'),a=calWorkout&&state.activities.find(x=>x.id===calWorkout);
@@ -309,7 +474,7 @@ ${l?`<p class="small">${esc(l.method)}</p>`:''}
 <div class="wd-compare"><h3>計畫與實際</h3>${plan?`<div class="wd-compare-row"><span class="cal-plan" data-type="${esc(plan.type)}">${esc(typeNames[plan.type]||plan.type)} ${plan.minutes}′</span><span>→</span><span class="cal-act" data-type="${esc(p?.type??'Unknown')}">${esc(typeNames[p?.type]||'目的待確認')} ${fmtMin(a.durationSeconds/60)}</span>${ratio===null?'':`<strong>${ratio}%</strong>`}</div><p class="small">${a.trainingType==='Unknown'?'訓練目的尚未確認，請在「資料」分頁標記。':(a.trainingType===plan.type?'訓練目的與計畫相符（使用者標記）。':'訓練目的與計畫不同（使用者標記）。')}時間相同不代表訓練刺激等效。</p>`:'<p class="muted">尚未對應課表。可在「資料」分頁選擇對應日期。</p>'}</div>
 ${sum.laps?.length?renderLapFacts(sum.laps):'<p class="small">沒有分圈資料。匯入含分圈的 FIT 檔後會顯示每圈配速與心率。</p>'}
 <p class="small">${esc(sum.uncertainties.join(' · '))}</p>
-<button type="button" class="text-button" data-tab="connections" data-goto-activity="${esc(a.id)}">在資料分頁查看地圖、曲線與對應設定 →</button>`;
+<button type="button" class="text-button" data-open-activity="${esc(a.id)}">在資料分頁查看地圖、曲線與對應設定 →</button>`;
 }
 document.querySelector('#calendar').addEventListener('click',e=>{
  const m=e.target.closest('[data-cal-month]');if(m){calMonth=m.dataset.calMonth==='0'?state.context.date.slice(0,7):shiftMonth(calMonth,Number(m.dataset.calMonth));renderCalendar();return;}
@@ -317,31 +482,146 @@ document.querySelector('#calendar').addEventListener('click',e=>{
  const w=e.target.closest('[data-workout]');if(w){calWorkout=w.dataset.workout;renderWorkoutDetail();return;}
  if(e.target.closest('[data-cal-close]')){calSelected=null;calWorkout=null;renderCalendar();return;}
  if(e.target.closest('[data-workout-close]')){calWorkout=null;renderWorkoutDetail();return;}
- const g=e.target.closest('[data-goto-activity]');if(g)requestAnimationFrame(()=>document.querySelector(`[data-activity-id="${CSS.escape(g.dataset.gotoActivity)}"]`)?.scrollIntoView({block:'start'}));
 });
+function settings(){
+ const context={...state.context,...formValue('#context-form')};
+ if(context.date!==state.context.date)delete context.trainingIntent;
+ return {profile:{...state.profile,...formValue('#profile-form')},context};
+}
+
+function renderCheckIn(){
+ const date=planWeekDate('today');
+ const context=state.context;
+ const sameDay=context.date===date;
+ const plans=[...state.plan,...Object.values(state.planHistory??{}).flat()];
+ const today=plans.find(day=>day.id===date);
+ fill('#context-form',sameDay?context:{
+  ...context,date,minutes:today?.minutes??45,location:'',sleep:'',feeling:'',weather:'',motivation:'',
+ });
+ $('#daily-check-in-status').textContent=sameDay&&context.trainingIntent
+  ? context.trainingIntent==='follow'?'今天已確認照原計畫。':'今天已記錄想調整課表。'
+  : '';
+}
+function planChanges(before,after){
+ const changes=after.flatMap((day,index)=>{
+  const previous=before[index];
+  if(day.type===previous.type&&day.minutes===previous.minutes)return [];
+  return [`<li><time datetime="${esc(day.id)}">${esc(day.id)}</time>
+   <span>${esc(previous.type)} · ${previous.minutes} 分</span>
+   <strong>${esc(day.type)} · ${day.minutes} 分</strong></li>`];
+ });
+ return changes.length?`<ul class="plan-changes"><li class="plan-changes-heading"><span>日期</span><span>原課表</span><span>調整後</span></li>${changes.join('')}</ul>`
+  :'<p class="small">課程類型與分鐘數相同。</p>';
+}
+
+function planDiff(recommendation){
+ if(!recommendation.proposedPlan)return '';
+ const {status,planBefore,proposedPlan,id}=recommendation;
+ const label=status==='accepted'?'已套用':status==='rejected'?'已保留原課表':'待確認';
+ const minutes=plan=>plan.reduce((sum,day)=>sum+day.minutes,0);
+ const quality=plan=>plan.filter(day=>['Interval','Tempo'].includes(day.type)).length;
+ return `<section class="proposal">
+  <div class="proposal-heading"><h3>課表調整</h3><span class="status-pill ${status==='accepted'?'is-linked':''}">${label}</span></div>
+  ${planChanges(planBefore,proposedPlan)}
+  <p class="small">整週 ${minutes(planBefore)} → ${minutes(proposedPlan)} 分鐘 · 品質課 ${quality(planBefore)} → ${quality(proposedPlan)} 次</p>
+  ${status==='pending'?`<div class="actions"><button type="button" class="primary" data-decision="accepted" data-id="${esc(id)}">套用新課表</button><button type="button" class="secondary" data-decision="rejected" data-id="${esc(id)}">保留原課表</button></div>`:''}
+ </section>`;
+}
+
+function recommendationDetails(recommendation){
+ const context=recommendation.context;
+ return `<details class="coach-details"><summary>理由、備案與限制</summary>
+  <p><strong>理由</strong><br>${esc(recommendation.why)}</p>
+  <p><strong>備案</strong><br>${esc(recommendation.planB)}</p>
+  ${recommendation.uncertainties.length?`<ul>${recommendation.uncertainties.map(item=>`<li>${esc(item)}</li>`).join('')}</ul>`:''}
+  ${context?`<p class="small">${esc(context.date)} · 可用 ${esc(context.minutes)} 分鐘${context.equipment?` · ${esc(context.equipment)}`:''}</p>`:''}
+ </details>`;
+}
+
+function renderJournal(){
+ const filter=$('#journal-filter').value;
+ const labels={morning:'訓練調整',chat:'教練對話',workout:'活動分析'};
+ const format=new Intl.DateTimeFormat('zh-TW',{timeZone:state.context.timezone,dateStyle:'medium',timeStyle:'short'});
+ const recommendations=filter==='revisions'?[]:state.recommendations.map(r=>({
+  at:r.at,html:`<article class="card journal-entry"><div class="journal-meta"><strong>${labels[r.kind]??'教練建議'}</strong>
+   <time datetime="${esc(r.at)}">${esc(format.format(new Date(r.at)))}</time></div>
+   <p>${esc(r.text)}</p>${planDiff(r)}${recommendationDetails(r)}</article>`,
+ }));
+ const revisions=filter==='recommendations'?[]:state.revisions.map(r=>({
+  at:r.at,html:`<article class="card journal-entry"><div class="journal-meta"><strong>課表變更</strong>
+   <time datetime="${esc(r.at)}">${esc(format.format(new Date(r.at)))}</time></div>
+   <p>${esc(r.reason)}</p>${Array.isArray(r.before)&&Array.isArray(r.after)?`<details><summary>查看變更前後</summary>${planChanges(r.before,r.after)}</details>`:''}</article>`,
+ }));
+ $('#journal-items').innerHTML=[...recommendations,...revisions].sort((a,b)=>b.at.localeCompare(a.at)).map(entry=>entry.html).join('')
+  ||'<article class="card empty-state"><p>這個分類還沒有紀錄。</p></article>';
+}
+
+function focusRecommendation(){
+ showPage('today');
+ const card=$('#recommendation');
+ card.scrollIntoView({block:'start'});
+ card.focus({preventScroll:true});
+}
+
+$('#journal-filter').addEventListener('change',()=>{if(state)renderJournal();});
+function renderAthlete(){
+ const athlete=state.athlete;
+ fill('#athlete-form',{maxHeartRate:athlete.maxHeartRate??'',restingHeartRate:athlete.restingHeartRate??'',lthr:athlete.lthr??'',thresholdPace:athlete.thresholdPaceSecPerKm?formatPace(athlete.thresholdPaceSecPerKm):'',ftp:athlete.ftp??'',weightKg:athlete.weightKg??''});
+}
+
 function render(){
- $('#mode').textContent=state.mode==='live'?'Live · 外部 LLM':'Mock · 流程示範';fill('#profile-form',state.profile);fill('#context-form',state.context);
- const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();{const a=state.athlete||{};fill('#athlete-form',{maxHeartRate:a.maxHeartRate??'',restingHeartRate:a.restingHeartRate??'',lthr:a.lthr??'',thresholdPace:a.thresholdPaceSecPerKm?formatPace(a.thresholdPaceSecPerKm):'',ftp:a.ftp??'',weightKg:a.weightKg??''});}$('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${b.planned} 分鐘</span><span>預計品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。以活動實際時間加總；課表完成度與訓練目的另行比較。</p>`;
- const r=state.recommendations.at(-1);$('#recommendation').innerHTML=r?`<div class="tag">${r.mode==='mock'?'MOCK · 非真實 AI 建議':esc(r.model)} · ${esc(r.at.slice(0,10))}</div><h2>今天，我們可以這樣練。</h2><p>${esc(r.text)}</p><p><strong>為什麼</strong><br>${esc(r.why)}</p><p><strong>Plan B</strong><br>${esc(r.planB)}</p><p class="small">缺失與不確定性：${r.uncertainties.map(esc).join(' · ')}</p>${planDiff(r)}`:'<div class="tag">下一步</div><h2>先告訴我，今天的你。</h2><p class="muted">填入今天的情境，產生第一份 Morning Coaching。<br>不用有完美的數據，從你知道的開始。</p>';
- $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'你':'AIAC 教練'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC 教練</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
- const latestStrava=state.activities.filter(activity=>activity.sources.some(source=>source.source==='strava')).sort((a,b)=>b.startedAt.localeCompare(a.startedAt))[0];
- if(latestStrava){const latest=document.createElement('p');latest.className='small';latest.textContent='最近同步活動 · '+latestStrava.date+' · '+state.summaries[latestStrava.id].facts;$('#budget').append(latest);}
- $('#plan-version').textContent=`${state.plan[0].id} — ${state.plan[6].id} · v${state.revisions.length+1}`;
- $('#budget-week-title').textContent=`${state.plan[0].id.slice(5)} 至 ${state.plan[6].id.slice(5)} 週節奏`;
- $('#plan-rows').innerHTML=state.plan.map((d,i)=>{const c=state.comparison[i];const isToday=d.id===state.context.date,has=c.activityIds.length>0,pct=c.ratio===null?null:Math.round(c.ratio*100);return `<div class="plan-row${isToday?' is-today':''}" data-index="${i}" data-type="${esc(d.type)}"><div class="plan-date">${esc(d.id.slice(5).replace('-','/'))}<span>週${'一二三四五六日'[i]}${isToday?'<em class="today-badge">今天</em>':''}</span></div><label>教練預計訓練<select name="type">${types.map(t=>`<option ${t===d.type?'selected':''}>${t}</option>`).join('')}</select></label><label>預計分鐘<input name="minutes" type="number" min="0" max="180" value="${d.minutes}" required></label>${has?`<div class="actual-result"><span class="ring" role="img" aria-label="時間完成度 ${pct===null?'不適用':pct+'%'}"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" pathLength="100"/><circle class="ring-fill" cx="18" cy="18" r="15.5" pathLength="100" stroke-dasharray="${Math.min(pct??100,100)} 100"/></svg><b>${pct===null?'—':pct+'%'}</b></span><strong>實際 ${c.actualMinutes.toFixed(1)} 分鐘${c.distanceMeters===null?'':' · '+(c.distanceMeters/1000).toFixed(2)+' km'}</strong><span>${esc(c.actualTypes.join(' + '))} · ${esc(c.stimulus)}</span>${renderPlanActivitySuggestion(d,c)}</div>`:`<div class="actual-result empty"><span>${c.status==='尚無結果'?(d.minutes?'還沒有實際紀錄':'休息日'):esc(c.status)}</span>${renderPlanActivitySuggestion(d,c)}</div>`}</div>`;}).join('');
- const planDates=new Set(state.plan.map(day=>day.id));
- const unlinked=state.activities.filter(activity=>!activity.planId&&planDates.has(activity.date)).length;
- const linked=state.comparison.reduce((n,c)=>n+c.actualMinutes,0);$('#weekly-comparison').innerHTML=`<div class="comparison-summary"><div><span>教練預計</span><strong>${b.planned} 分鐘</strong></div><div><span>對應課表的實際結果</span><strong>${linked.toFixed(1)} 分鐘</strong></div><div><span>整週時間完成度</span><strong>${b.planned?(linked/b.planned*100).toFixed(0)+'%':'未設定'}</strong></div></div>${unlinked?`<p class="small">本週有 ${unlinked} 筆活動尚未對應課表。</p>`:''}<p class="small">完成度允許超過 100%；時間相符不代表間歇、Zone2 等訓練刺激等效。下方編輯只改預計課程，不改實際紀錄。舊版勾選不會被當成實際分鐘數。</p>`;
+ $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
+ const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();
+ renderAthlete();
+ $('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
+ const r=state.recommendations.at(-1);
+ $('#recommendation').innerHTML=r?`<h2>教練建議</h2><p class="small">${r.mode==='mock'?'Mock 示範':esc(r.model)} · ${esc(r.at.slice(0,10))}</p>
+  ${planDiff(r)}<p>${esc(r.text)}</p>${recommendationDetails(r)}`
+  :'<h2>教練建議</h2><p class="muted">需要改課時，從上方選擇「請教練幫我調整」。</p>';
+ $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'YOU':'AIAC COACH'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC COACH</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
+ renderDailyOverview();
+ $('#budget-week-title').textContent=`${state.plan[0].id.slice(5)} 至 ${state.plan[6].id.slice(5)}`;
+ renderWeeklyPlan();
+ kettlebell.render();
+ $('#kb-activity-link').innerHTML=circuitButton(state.kettlebell?.active?.plan.date??planWeekDate('today'),'壺鈴訓練與紀錄 →','secondary');
  renderConnections();
  $('#memories').innerHTML=state.memories.map(m=>`<div class="memory-item"><label>已確認 · 使用者提供<textarea data-memory="${esc(m.id)}" rows="2">${esc(m.text)}</textarea></label><button data-memory-save="${esc(m.id)}">儲存更正</button><button data-memory-delete="${esc(m.id)}">刪除</button></div>`).join('')||'<p class="small">還沒有長期記憶。由你決定哪些資訊值得留下。</p>';
- $('#journal-items').innerHTML=[...state.recommendations.map(r=>({at:r.at,html:`<article class="card journal-entry"><div class="tag">${esc(r.mode)} · ${esc(r.kind)} · ${esc(r.model)}</div><h2>${esc(new Date(r.at).toLocaleString('zh-TW',{timeZone:state.context.timezone}))}</h2><p>${esc(r.text)}</p>${planDiff(r)}<details><summary>檢視當時情境與決策摘要</summary><pre>${esc(JSON.stringify(r,null,2))}</pre></details></article>`})),...state.revisions.map(r=>({at:r.at,html:`<article class="card journal-entry"><div class="tag">課表修改</div><h2>${esc(r.at)}</h2><p>${esc(r.reason)}</p><details><summary>調整前後紀錄</summary><pre>${esc(JSON.stringify(r,null,2))}</pre></details></article>`}))].sort((a,b)=>b.at.localeCompare(a.at)).map(x=>x.html).join('')||'<article class="card"><p class="muted">你的第一段 Coaching 對話，會從這裡開始保存。</p></article>';
+ renderJournal();
 }
-document.addEventListener('click',e=>{const tab=e.target.closest('[data-tab]');if(tab){document.querySelectorAll('.page').forEach(p=>p.hidden=p.id!==tab.dataset.tab);document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab.dataset.tab));}const prompt=e.target.closest('[data-prompt]');if(prompt){$('#chat-input').value=prompt.dataset.prompt;$('#chat-input').focus();}const decision=e.target.closest('[data-decision]');if(decision)action(async()=>{state=await api('decision',{id:decision.dataset.id,decision:decision.dataset.decision});render();notice(decision.dataset.decision==='accepted'?'已套用課表並保存修改紀錄。':'已保留原課表，拒絕紀錄已保存。');});const save=e.target.closest('[data-memory-save]'),del=e.target.closest('[data-memory-delete]');if(save||del)action(async()=>{const id=save?.dataset.memorySave||del.dataset.memoryDelete;state=await api('memory',save?{id,text:document.querySelector(`[data-memory="${id}"]`).value}:{id,action:'delete'});render();notice('記憶已更新。');});});
+document.addEventListener('click',e=>{const tab=e.target.closest('[data-tab]');if(tab)showPage(tab.dataset.tab);const prompt=e.target.closest('[data-prompt]');if(prompt){$('#chat-input').value=prompt.dataset.prompt;$('#chat-input').focus();}const decision=e.target.closest('[data-decision]');if(decision)action(async()=>{state=await api('decision',{id:decision.dataset.id,decision:decision.dataset.decision});render();notice(decision.dataset.decision==='accepted'?'已套用課表並保存修改紀錄。':'已保留原課表，拒絕紀錄已保存。');});const save=e.target.closest('[data-memory-save]'),del=e.target.closest('[data-memory-delete]');if(save||del)action(async()=>{const id=save?.dataset.memorySave||del.dataset.memoryDelete;state=await api('memory',save?{id,text:document.querySelector(`[data-memory="${id}"]`).value}:{id,action:'delete'});render();notice('記憶已更新。');});});
 $('#athlete-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const f=formValue('#athlete-form');state=await api('athlete',{athlete:{maxHeartRate:f.maxHeartRate,restingHeartRate:f.restingHeartRate,lthr:f.lthr,thresholdPaceSecPerKm:parsePace(f.thresholdPace),ftp:f.ftp,weightKg:f.weightKg}});render();notice('訓練閾值已保存，負荷與狀態已重新計算。');});});
 $('#profile-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('settings',settings());render();notice('個人設定與目前情境已保存。');});});
-$('#context-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('settings',settings());notice(state.mode==='mock'?'正在產生 Mock 流程示範…':'正在向設定的 LLM 產生建議…');state=await api('coach',{kind:'morning',message:'請根據今天的完整情境，提供 Morning Coaching，包含時間、場地、課程結構、理由、風險、Plan B 與 Weekly Budget 影響。'});render();notice('建議已保存。'+(state.mode==='mock'?'目前為 Mock Mode，尚未呼叫真實 LLM。':''));});});
-$('#chat-form').addEventListener('submit',e=>{e.preventDefault();const message=$('#chat-input').value;action(async()=>{state=await api('settings',settings());notice('教練正在回應…');state=await api('coach',{kind:'chat',message});$('#chat-input').value='';render();notice('對話已保存；若有調課提案，請在建議卡片確認。');});});
-$('#plan-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const plan=[...document.querySelectorAll('.plan-row')].map((row,i)=>({...state.plan[i],type:row.querySelector('select').value,minutes:Number(row.querySelector('[name=minutes]').value)}));state=await api('plan',{plan});render();notice('預計課表已保存；實際結果保持獨立。');});});
+$('#context-form').addEventListener('invalid',event=>{
+ const details=event.target.closest('details');
+ if(details)details.open=true;
+},true);
+$('#context-form').addEventListener('submit',event=>{
+ event.preventDefault();
+ const intent=event.submitter?.value==='adjust'?'adjust':'follow';
+ action(async()=>{
+  const payload=settings();
+  payload.context.trainingIntent=intent;
+  state=await api('settings',payload);
+  if(intent==='follow'){
+   render();
+   notice('已保存器材與照原計畫的選擇。');
+   return;
+  }
+  try{
+   if(!state.plan.some(day=>day.id===payload.context.date)){
+    state=await api('plan-week',{date:payload.context.date});
+   }
+   notice(state.mode==='mock'?'正在產生 Mock 調整建議…':'正在向設定的 LLM 取得調整建議…');
+   state=await api('coach',{kind:'morning',message:'請依我提供的器材、可用時間、訓練意願與本週實績，提出今天可行的調整。若缺少調整方向，請先問我。'});
+   notice('調整建議已保存。');
+  }finally{
+   render();
+  }
+  focusRecommendation();
+ });
+});
+$('#chat-form').addEventListener('submit',e=>{e.preventDefault();const message=$('#chat-input').value;action(async()=>{state=await api('settings',settings());notice('教練正在回應…');state=await api('coach',{kind:'chat',message});$('#chat-input').value='';render();focusRecommendation();notice('對話已保存。');});});
+$('#plan-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const plan=[...document.querySelectorAll('.plan-row')].map((row,i)=>({...state.plan[i],type:row.querySelector('select').value,minutes:Number(row.querySelector('[name=minutes]').value)}));state=await api('plan',{plan});render();notice('課表已儲存。');});});
 $('#memory-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('memory',formValue('#memory-form'));$('#memory-form').reset();render();notice('已保存你確認的長期記憶。');});});
 $('#reset').addEventListener('click',()=>{const confirm=window.prompt('刪除本地個人設定、對話、記憶及日誌，並還原示範課表。輸入 DELETE 確認：');if(confirm==='DELETE')action(async()=>{state=await api('reset',{confirm});render();notice('個人資料已刪除，已還原初始示範狀態。');});});
 
@@ -373,7 +653,8 @@ $('#backup-file').addEventListener('change',event=>{
   const data=backup?.data;
   if(backup?.format!=='aiac-backup'||backup.version!==1||!Array.isArray(data?.activities)||!Array.isArray(data?.plan)||!data.planHistory)throw Error('這不是支援的 AIAC 備份格式。');
   backupToRestore=backup;
-  $('#backup-summary').textContent=`${file.name} 包含 ${1+Object.keys(data.planHistory).length} 週課表和 ${data.activities.length} 筆活動。確認後會取代目前的訓練資料與教練紀錄。`;
+  const kbCount=Array.isArray(data.kettlebell?.sessions)?data.kettlebell.sessions.length:0;
+  $('#backup-summary').textContent=`${file.name} 包含 ${1+Object.keys(data.planHistory).length} 週課表、${data.activities.length} 筆活動及 ${kbCount} 筆壺鈴訓練紀錄。確認後會取代目前的訓練資料與教練紀錄。`;
   $('#backup-review').hidden=false;
  });
 });
@@ -393,7 +674,7 @@ function filterActivities(){
  for(const card of $('#activities').querySelectorAll('[data-activity-id]')){
   const activity=activities.get(card.dataset.activityId);
   const matchesSource=!source||activity.sources.some(entry=>entry.source===source);
-  const matchesQuery=!query||[activity.name,activity.date,activity.sport,activity.trainingType]
+  const matchesQuery=!query||[activity.name,activity.date,activity.sport,activity.trainingType,activity.kettlebellSessionId?'壺鈴':'']
    .some(value=>String(value??'').toLocaleLowerCase().includes(query));
   card.hidden=!(matchesSource&&matchesQuery);
   if(!card.hidden)visible++;
@@ -413,9 +694,72 @@ function refreshActivityFilters(){
  filterActivities();
 }
 
+function renderGarminStatus(){
+ const garmin=state.connections.garmin;
+ const target=$('#garmin-status');
+ if(globalThis.AIAC_DEMO){
+  target.textContent='請使用本機版同步 Garmin。';
+  return;
+ }
+ if(!garmin?.configured){
+  target.textContent='請在本機 .env 設定 GARMIN_PERSONAL_API_KEY，再重啟 AIAC。';
+  return;
+ }
+ const format=value=>new Date(value).toLocaleString('zh-TW',{timeZone:state.context.timezone,hour12:false});
+ target.textContent=[
+  garmin.lastSync?`上次成功同步 ${format(garmin.lastSync)}`:'尚無成功同步紀錄',
+  garmin.nextSync?`下次檢查 ${format(garmin.nextSync)}`:'',
+  garmin.lastError,
+ ].filter(Boolean).join(' · ');
+}
+
+function loadBadge(id){
+ const load=state.load?.perActivity?.[id];
+ return load?`<p class="activity-load" data-confidence="${esc(load.confidence)}" title="${esc(load.method)}"><strong>${load.score}</strong> 訓練負荷 · ${esc(loadSourceNames[load.source]||load.source)} · ${esc(confidenceNames[load.confidence])}</p>`:'';
+}
+
+function renderActivityCard(activity,days){
+ const id=esc(activity.id);
+ const summary=state.summaries[activity.id];
+ const circuit=activity.kettlebellSessionId&&state.kettlebell?.sessions.find(session=>session.id===activity.kettlebellSessionId);
+ const hasSource=source=>activity.sources.some(entry=>entry.source===source);
+ const source=hasSource('garmin-connect')?'Garmin Connect':hasSource('strava')?'Strava':hasSource('fit')?'FIT':activity.source;
+ const route=activity.route?.length>=2?`<details class="activity-route" data-route-activity="${id}" ${collapsedRouteIds.has(activity.id)?'':'open'}>
+  <summary>GPS 軌跡地圖</summary><div data-activity-map></div></details>`:'';
+ const fit=hasSource('fit')?(globalThis.AIAC_DEMO?renderLapFacts(summary.laps):`<details class="activity-route">
+  <summary>FIT 訓練曲線與分圈</summary><button class="secondary" data-fit-charts>載入 FIT 曲線與分圈</button><div data-fit-chart-output aria-live="polite"></div></details>`):'';
+ const strava=hasSource('strava')&&!hasSource('garmin-connect')?renderStravaFacts(activity):'';
+ return `<article class="card activity-entry" data-activity-id="${id}">
+  <header class="activity-header"><div><span class="activity-meta">${esc(activity.date)} · ${esc(source)}</span><h2>${esc(activity.name)}</h2></div>
+   <span class="status-pill ${activity.planId||circuit?'is-linked':''}">${circuit?'已對應壺鈴':activity.planId?'已對應':'待對應課表'}</span></header>
+  <dl class="activity-metrics">
+   <div><dt>訓練時間</dt><dd>${(activity.durationSeconds/60).toFixed(1)} <small>分</small></dd></div>
+   <div><dt>距離</dt><dd>${activity.distanceMeters===null?'—':`${(activity.distanceMeters/1000).toFixed(2)} <small>km</small>`}</dd></div>
+   <div><dt>平均心率</dt><dd>${activity.avgHeartRate===null?'—':`${Math.round(activity.avgHeartRate)} <small>bpm</small>`}</dd></div>
+   <div><dt>平均配速</dt><dd>${summary.pace===null?'—':`${formatPace(summary.pace)} <small>/ km</small>`}</dd></div>
+  </dl>
+  ${loadBadge(activity.id)}${route}${fit}${strava}
+  ${circuit?`<details class="activity-assignment"><summary>對應課表 · ${esc(circuit.plan.date)} 全身壺鈴間歇</summary><p class="small">這筆裝置活動保留供查閱。這堂課的時間以 AIAC 計時為準。</p>${circuitButton(circuit.plan.date,'查看壺鈴結果')}</details>`:`<details class="activity-assignment">
+   <summary>${activity.planId?`課表對應 · ${esc(activity.planId)}`:'對應課表與訓練目的'}</summary>
+   <div class="fields">
+    <label>對應課表<select data-link-date="${id}"><option value="">尚未對應</option>
+     ${days.map(day=>`<option value="${esc(day.id)}" ${activity.planId===day.id?'selected':''}>${esc(day.id)} · ${esc(day.type)} ${day.minutes} 分</option>`).join('')}
+    </select></label>
+    <label>實際訓練目的<select data-link-type="${id}">
+     ${['Unknown',...types].map(type=>`<option value="${type}" ${activity.trainingType===type?'selected':''}>${type==='Unknown'?'待確認':type}</option>`).join('')}
+    </select></label>
+   </div>
+   <button type="button" class="primary" data-link-save="${id}">儲存對應</button>
+  </details>`}
+  <div class="actions activity-actions">
+   <button type="button" class="secondary" data-analyze="${id}">請教練分析</button>
+   <button type="button" class="text-button activity-remove" data-delete-activity="${id}">移除活動</button>
+  </div>
+ </article>`;
+}
+
 function renderConnections(){
- $('#garmin-status').textContent=globalThis.AIAC_DEMO?'請使用本機版同步 Garmin。'
-  :state.connections.garmin?.configured?'已載入 Personal API Key。本機服務執行時會自動同步 Garmin。':'請在本機 .env 設定 GARMIN_PERSONAL_API_KEY，再重啟 AIAC。';
+ renderGarminStatus();
  for(const details of $('#activities').querySelectorAll('[data-route-activity]')){
   routeVisibility.unobserve(details);
   clearRouteMap(details.querySelector('[data-activity-map]'));
@@ -431,13 +775,16 @@ function renderConnections(){
  const syncTime=value=>new Date(value).toLocaleString('zh-TW',{timeZone:state.context.timezone,hour12:false});
  const stravaLabel=strava.status==='reauthorize'?'授權已失效':strava.connected?'已連接 Strava':strava.configured?'等待你在 Strava 授權':'AIAC 尚未開通 Strava 連線';
  $('#strava-status').innerHTML=`<p class="tag">${stravaLabel}</p><p class="small">${strava.lastSync?'最近成功同步 '+esc(syncTime(strava.lastSync)):'尚未同步。'}${strava.nextSync?' · 下次同步 '+esc(syncTime(strava.nextSync)):''}</p>${strava.connected?'<p class="small">Strava 活動可在本機查看與對照課表。</p>':''}${strava.lastError?`<p role="status">${esc(strava.lastError)}</p>`:''}`;
- $('#activities').innerHTML=state.activities.length?state.activities.slice().reverse().map(a=>{const summary=state.summaries[a.id];const linkableDays=[...state.plan,...Object.values(state.planHistory??{}).flat()].sort((a,b)=>a.id.localeCompare(b.id));return `<article class="activity-entry" data-activity-id="${esc(a.id)}"><div class="tag">${esc(a.sources.map(s=>s.source).join(' / '))} · ${esc(a.date)} · ${esc(a.timezone)}</div><h2>${esc(a.name)}</h2><p>${esc(summary.facts)}</p>${(()=>{const l=state.load?.perActivity?.[a.id];return l?`<p class="activity-load" data-confidence="${esc(l.confidence)}" title="${esc(l.method)}"><strong>${l.score}</strong> 訓練負荷 · ${esc(loadSourceNames[l.source]||l.source)} · ${esc(confidenceNames[l.confidence])}</p>`:'';})()}${a.sources.some(s=>s.source==="strava")&&!a.sources.some(s=>s.source==="garmin-connect")?renderStravaFacts(a):""}<p class="small">${summary.pace===null?'配速未知':'平均配速 '+formatPace(summary.pace)+' / km'} · ${esc(summary.uncertainties.join(' · '))}</p>${a.sources.some(s=>s.source==='fit')?(globalThis.AIAC_DEMO?renderLapFacts(summary.laps):'<details class="activity-route"><summary>FIT 訓練曲線與分圈</summary><button class="secondary" data-fit-charts>載入 FIT 曲線與分圈</button><div data-fit-chart-output aria-live="polite"></div></details>'):''}${a.route?.length>=2?`<details class="activity-route" data-route-activity="${esc(a.id)}" ${collapsedRouteIds.has(a.id)?"":"open"}><summary>GPS 軌跡地圖</summary><div data-activity-map></div></details>`:a.sources.some(s=>s.source==='fit')?'<p class="small">如有原始 FIT，可重新匯入以補上 GPS 軌跡。</p>':''}<div class="fields"><label>對應課表<select data-link-date="${esc(a.id)}"><option value="">尚未對應（不計課表完成度）</option>${linkableDays.map(p=>`<option value="${p.id}" ${a.planId===p.id?'selected':''}>${p.id} · ${p.type} ${p.minutes} 分</option>`).join('')}</select></label><label>實際訓練目的 · 使用者確認<select data-link-type="${esc(a.id)}">${['Unknown',...types].map(t=>`<option ${a.trainingType===t?'selected':''}>${t}</option>`).join('')}</select></label></div><div class="actions"><button class="secondary" data-link-save="${esc(a.id)}">儲存對應與目的</button><button class="secondary" data-analyze="${esc(a.id)}">請教練分析（依目前 LLM 設定）</button><button class="secondary" data-delete-activity="${esc(a.id)}">移除活動</button></div><p class="small">${esc(summary.note)}</p></article>`;}).join(''):'<p class="muted">還沒有實際活動。拖入 FIT 或在週計畫手動登錄結果。</p>';
+ const linkableDays=[...state.plan,...Object.values(state.planHistory??{}).flat()].sort((a,b)=>a.id.localeCompare(b.id));
+ const ordered=[...state.activities].sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
+ $('#activities').innerHTML=ordered.length?ordered.map(activity=>renderActivityCard(activity,linkableDays)).join('')
+  :'<div class="card empty-state"><h2>還沒有訓練活動</h2><p>匯入 FIT、同步裝置，或到週課表手動登錄。</p><button type="button" class="secondary" data-tab="connections">前往裝置同步</button></div>';
  refreshActivityFilters();
  for(const details of $('#activities').querySelectorAll('[data-route-activity][open]'))routeVisibility.observe(details);
  $('#actual-form').elements.planId.innerHTML=state.plan.map(p=>`<option value="${p.id}" ${p.id===state.context.date?'selected':''}>${p.id} · ${p.type}</option>`).join('');
  globalThis.AIAC_DEMO?.decorate();
 }
-const manualCard=document.createElement('article');manualCard.className='card';manualCard.innerHTML=`<h2>登錄實際訓練結果</h2><p class="small">沒有連接裝置也能記錄結果。這會新增實際活動，保留教練原預計課程。每次提交新增一筆，可在資料頁移除誤登活動。</p><form id="actual-form"><div class="fields"><label>對應課表<select name="planId"></select></label><label>實際訓練目的<select name="trainingType"><option>Unknown</option>${types.map(t=>`<option>${t}</option>`).join('')}</select></label><label>開始時間（依今日情境時區）<input name="time" type="time" value="07:00" required></label><label>實際分鐘<input name="minutes" type="number" min="0" max="1440" step="0.1" required></label><label>距離 km（選填）<input name="distanceKm" type="number" min="0" max="1000" step="0.01"></label><label>平均心率 bpm（選填）<input name="avgHeartRate" type="number" min="1" max="250"></label></div><label>實際感受／備註<textarea name="notes" rows="2"></textarea></label><button class="primary">保存實際結果</button> <button type="button" class="secondary" data-tab="connections">FIT 匯入 / 管理活動 →</button></form>`;$('#plan').append(manualCard);
+const manualCard=document.createElement('details');manualCard.id='manual-activity';manualCard.className='card manual-activity';manualCard.innerHTML=`<summary>手動登錄實際訓練</summary><form id="actual-form"><div class="fields"><label>對應課表<select name="planId"></select></label><label>實際訓練目的<select name="trainingType"><option>Unknown</option>${types.map(t=>`<option>${t}</option>`).join('')}</select></label><label>開始時間（依今日情境時區）<input name="time" type="time" value="07:00" required></label><label>實際分鐘<input name="minutes" type="number" min="0" max="1440" step="0.1" required></label><label>距離 km（選填）<input name="distanceKm" type="number" min="0" max="1000" step="0.01"></label><label>平均心率 bpm（選填）<input name="avgHeartRate" type="number" min="1" max="250"></label></div><label>實際感受／備註<textarea name="notes" rows="2"></textarea></label><button class="primary">保存實際結果</button> <button type="button" class="secondary" data-tab="activity-log">匯入 FIT 或管理活動 →</button></form>`;$('#plan').append(manualCard);
 function fitFeedback(text,kind,showActivity=false){$('#fit-feedback').hidden=false;$('#fit-feedback').dataset.status=kind;$('#fit-status').textContent=text;$('#fit-view').hidden=!showActivity;}
 async function uploadFit(file){
  if(!file)return;
@@ -471,6 +818,10 @@ $('#fit-drop').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e
 $('#fit-drop').addEventListener('dragover',e=>{e.preventDefault();$('#fit-drop').classList.add('dragging');});
 $('#fit-drop').addEventListener('dragleave',()=>$('#fit-drop').classList.remove('dragging'));
 $('#fit-drop').addEventListener('drop',e=>{e.preventDefault();$('#fit-drop').classList.remove('dragging');if(!pending)action(()=>uploadFit(e.dataTransfer.files[0]));});
+$('#activity-import-button').addEventListener('click',()=>{
+ $('#activity-import').open=true;
+ $('#fit-file').click();
+});
 $('#fit-file').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(!pending)action(()=>uploadFit(file));});
 $('#fit-view').addEventListener('click',()=>{$('#activities').scrollIntoView({block:'start'});});
 $('#activities').addEventListener('toggle',event=>{
@@ -511,17 +862,34 @@ for(const [id,backfill] of [['#strava-sync',false],['#strava-backfill',true]]){
 }
 $('#garmin-sync').addEventListener('click',()=>action(async()=>{
  notice('正在下載並解析 Garmin 原始 FIT…');
- state=await api('garmin-sync',{});
+ try{state=await api('garmin-sync',{});}
+ catch(error){
+  const refreshed=await api('state').catch(()=>null);
+  if(refreshed){state=refreshed;render();}
+  throw error;
+ }
  render();
  const {files,added,duplicates,withoutFit,more}=state.imported;
  notice(`已讀取 ${files} 個 FIT，新增 ${added} 筆，合併或去重 ${duplicates} 筆。${withoutFit?` ${withoutFit} 筆沒有可用 FIT。`:''}${more?' 可再次同步以讀取下一批。':''}`);
 }));
 $('#strava-disconnect').addEventListener('click',()=>action(async()=>{state=await api('strava-disconnect',{});render();notice('Strava 已撤銷連接；已匯入的活動仍保留。');}));
 $('#import-json').addEventListener('click',()=>action(async()=>{state=await api('activities',{source:$('#json-source').value,activities:JSON.parse($('#activity-json').value)});render();notice(`已新增 ${state.imported.added} 筆活動。`);}));
-document.addEventListener('click',e=>{const save=e.target.closest('[data-link-save]'),del=e.target.closest('[data-delete-activity]'),analyze=e.target.closest('[data-analyze]');if(save)action(async()=>{const id=save.dataset.linkSave;state=await api('activity-link',{id,planId:document.querySelector(`[data-link-date="${id}"]`).value,trainingType:document.querySelector(`[data-link-type="${id}"]`).value});render();notice('課表對應已保存，時間與目的完成度已重新計算。');});if(del&&window.confirm('確定移除此活動紀錄？原始 FIT 檔會保留到重設全部資料。'))action(async()=>{state=await api('activity-delete',{id:del.dataset.deleteActivity});render();notice('活動紀錄已移除。');});if(analyze)action(async()=>{notice('正在依目前的模型設定分析…');state=await api('coach',{kind:'workout',message:'請分析這份實際訓練結果，對照預計課表並區分事實與假設。',activityId:analyze.dataset.analyze});render();document.querySelector('nav [data-tab=today]').click();notice('分析已保存至 Coaching 與日誌。');});if(e.target.id==='import-mcp-output')action(async()=>{let data=mcpOutput.structuredContent;if(!data){const t=mcpOutput.content?.find(c=>c.type==='text');data=JSON.parse(t?.text||'null');}const activities=Array.isArray(data)?data:data?.activities;state=await api('activities',{source:new URL(state.connections.mcp.url).hostname==='mcp.strava.com'?'strava-mcp':'mcp',activities});render();notice(`已新增 ${state.imported.added} 筆、重複 ${state.imported.duplicates} 筆。`);});});
+document.addEventListener('click',e=>{const save=e.target.closest('[data-link-save]'),del=e.target.closest('[data-delete-activity]'),analyze=e.target.closest('[data-analyze]');if(save)action(async()=>{const id=save.dataset.linkSave;state=await api('activity-link',{id,planId:document.querySelector(`[data-link-date="${id}"]`).value,trainingType:document.querySelector(`[data-link-type="${id}"]`).value});render();notice('課表對應已保存，時間與目的完成度已重新計算。');});if(del&&window.confirm('確定移除此活動紀錄？原始 FIT 檔會保留到重設全部資料。'))action(async()=>{state=await api('activity-delete',{id:del.dataset.deleteActivity});render();notice('活動紀錄已移除。');});if(analyze)action(async()=>{notice('正在依目前的模型設定分析…');state=await api('coach',{kind:'workout',message:'請分析這份實際訓練結果，對照預計課表並區分事實與假設。',activityId:analyze.dataset.analyze});render();focusRecommendation();notice('活動分析已保存。');});if(e.target.id==='import-mcp-output')action(async()=>{let data=mcpOutput.structuredContent;if(!data){const t=mcpOutput.content?.find(c=>c.type==='text');data=JSON.parse(t?.text||'null');}const activities=Array.isArray(data)?data:data?.activities;state=await api('activities',{source:new URL(state.connections.mcp.url).hostname==='mcp.strava.com'?'strava-mcp':'mcp',activities});render();notice(`已新增 ${state.imported.added} 筆、重複 ${state.imported.duplicates} 筆。`);});});
 $('#activity-search').addEventListener('input',()=>{if(state)filterActivities();});
 $('#activity-source-filter').addEventListener('change',()=>{if(state)filterActivities();});
-$('#plan-rows').addEventListener('click',event=>{
+document.addEventListener('click',event=>{
+ const open=event.target.closest('[data-open-activity]');
+ if(open){
+  showPage('activity-log');
+  $('#activity-search').value='';
+  $('#activity-source-filter').value='';
+  filterActivities();
+  const card=[...$('#activities').children].find(item=>item.dataset.activityId===open.dataset.openActivity);
+  if(card)card.querySelector('.activity-assignment').open=true;
+  card?.scrollIntoView({block:'start'});
+  card?.querySelector('[data-link-date]')?.focus({preventScroll:true});
+  return;
+ }
  const button=event.target.closest('[data-plan-link-activity]');
  if(!button)return;
  action(async()=>{

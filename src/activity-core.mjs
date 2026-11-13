@@ -29,7 +29,7 @@ export function importActivities(state,items,activityIds){
  }return {added,duplicates};
 }
 export function comparison(state){return state.plan.map(p=>{
- const activities=state.activities.filter(a=>a.planId===p.id);
+ const activities=state.activities.filter(a=>a.planId===p.id&&!a.kettlebellSessionId);
  const actualMinutes=activities.reduce((n,a)=>n+a.durationSeconds/60,0);
  const distanceKnown=activities.filter(a=>a.distanceMeters!==null);
  const distanceMeters=distanceKnown.length?distanceKnown.reduce((n,a)=>n+a.distanceMeters,0):null;
