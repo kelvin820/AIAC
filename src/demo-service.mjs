@@ -1,20 +1,23 @@
 import {exportBackup,restoreBackup} from './backup.mjs';
 import {initialState} from './initial-state.mjs';
-import {hasPlanDate,selectPlanWeek} from './plan-weeks.mjs';
+import {loadSummary,validateAthlete,defaultAthlete} from './training-load.mjs';
+import {performanceData} from './performance.mjs';
+import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './plan-weeks.mjs';
 import {budget,mockCoach,validatePlan} from './coach.mjs';
 import {normalizeActivity,importActivities,comparison,activitySummary} from './activity-core.mjs';
 import {decodeFitBytes} from './fit-core.mjs';
 const key='aiac-browser-demo-v1';
 const version=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType]));
 export function createDemoService(storage){
- let state;try{state=JSON.parse(storage.getItem(key)||'null')||initialState();}catch{throw Error('無法讀取瀏覽器試用資料，請允許此網站的儲存權限或清除已損壞資料。');}
- function view(s){return {...structuredClone(s),mode:'mock',demo:true,budget:budget(s),comparison:comparison(s),connections:{...structuredClone(s.connections),llm:{...s.connections.llm,hasKey:false},mcp:{...s.connections.mcp,hasBearer:false},strava:{configured:false,connected:false}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+ let state;try{state=JSON.parse(storage.getItem(key)||'null')||initialState();state.athlete??=defaultAthlete();}catch{throw Error('無法讀取瀏覽器試用資料，請允許此網站的儲存權限或清除已損壞資料。');}
+ function view(s){return {...structuredClone(s),mode:'mock',demo:true,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),connections:{...structuredClone(s.connections),llm:{...s.connections.llm,hasKey:false},mcp:{...s.connections.mcp,hasBearer:false},strava:{configured:false,connected:false}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
  function save(s){try{storage.setItem(key,JSON.stringify(s));}catch{throw Error('瀏覽器儲存空間不足，未保存變更。可先移除舊活動或重設試用資料。');}state=s;return view(s);}
  return {
   async request(path,b={}){
-   const s=structuredClone(state);if(path==='state')return view(s);
+   const s=structuredClone(state);if(path==='state')return advanceToToday(s,todayIn(s.context.timezone))?save(s):view(s);
    if(path==='backup')return exportBackup(s);
    if(path==='backup-restore')return save(restoreBackup(s,b));
+   if(path==='athlete'){s.athlete=validateAthlete(b.athlete);return save(s);}
    if(path==='settings'){
     if(!b.profile||!b.context)throw Error('設定格式不正確');
     if(!Number.isFinite(Number(b.context.minutes))||b.context.minutes<0||b.context.minutes>180||!Number.isFinite(Number(b.profile.weeklyMinutes))||b.profile.weeklyMinutes<0||b.profile.weeklyMinutes>2000)throw Error('請檢查時間與每週目標');
