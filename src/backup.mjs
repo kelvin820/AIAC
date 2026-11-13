@@ -2,10 +2,11 @@ import {initialState} from './initial-state.mjs';
 import {validatePlan} from './coach.mjs';
 import {weekStart} from './plan-weeks.mjs';
 import {defaultAthlete,validateAthlete} from './training-load.mjs';
+import {validateGoal} from './goals.mjs';
 import {emptyKettlebell,matchesCircuitTime,restoreKettlebell} from '../public/kettlebell-core.js';
 
 export const backupLimit = 10 * 1024 * 1024;
-const fields = ['profile','athlete','context','plan','planHistory','activities','messages','recommendations','revisions','memories'];
+const fields = ['profile','athlete','goals','context','plan','planHistory','activities','messages','recommendations','revisions','memories'];
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const string = value => typeof value === 'string';
 const id = value => string(value) && /^[a-zA-Z0-9_-]{1,128}$/.test(value);
@@ -16,7 +17,7 @@ const check = (condition, label) => {if (!condition) throw Error(`備份的${lab
 export function exportBackup(state) {
   return {
     format:'aiac-backup', version:1, exportedAt:new Date().toISOString(),
-    data:{...Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : undefined))])),kettlebell:structuredClone(state.kettlebell??emptyKettlebell())},
+    data:{...Object.fromEntries(fields.map(key => [key, structuredClone(state[key] ?? (key === 'planHistory' ? {} : key === 'athlete' ? defaultAthlete() : key === 'goals' ? [] : undefined))])),kettlebell:structuredClone(state.kettlebell??emptyKettlebell())},
   };
 }
 
@@ -81,6 +82,14 @@ export function restoreBackup(state, backup) {
   const {lastOpenedOn, ...rest} = state;
   // Backups made before athlete thresholds existed have no athlete record.
   const athlete = data.athlete === undefined ? defaultAthlete() : validateAthlete(data.athlete);
+  // Backups made before goals existed have no goals list.
+  check(data.goals === undefined || (Array.isArray(data.goals) && data.goals.length <= 50), '目標');
+  const goals = (data.goals ?? []).map(goal => {
+    check(record(goal) && id(goal.id) && timestamp(goal.createdAt), '目標');
+    try { return validateGoal(goal, string(goal.updatedAt) && timestamp(goal.updatedAt) ? goal.updatedAt : goal.createdAt); }
+    catch { check(false, '目標'); }
+  });
+  check(new Set(goals.map(goal => goal.id)).size === goals.length, '目標識別碼');
   const kettlebell=restoreKettlebell(data.kettlebell);
   const sessions=new Map(kettlebell.sessions.map(session=>[session.id,session]));
   for(const activity of data.activities){
@@ -88,5 +97,5 @@ export function restoreBackup(state, backup) {
     const session=sessions.get(activity.kettlebellSessionId);
     check(id(activity.kettlebellSessionId)&&session&&activity.planId===null&&matchesCircuitTime(session,activity),'壺鈴活動對應');
   }
-  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : structuredClone(data[key])])),kettlebell};
+  return {...rest, ...Object.fromEntries(fields.map(key => [key, key === 'athlete' ? athlete : key === 'goals' ? goals : structuredClone(data[key])])),kettlebell};
 }
