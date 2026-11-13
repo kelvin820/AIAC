@@ -5,8 +5,8 @@
 :root{
  --bg:#0E1312;--rail:#0A0E0D;--panel:#161D1B;--panel-2:#1C2522;--field:#111816;--line:#26312D;--line-2:#33403B;
  --text:#E9EFEB;--text-2:#B3BFB9;--muted:#84918B;
- --brand:#7FC8A0;--accent:#F2A65A;--danger:#F07F5F;
- --t-zone2:#6FC3A0;--t-recovery:#6AB7D6;--t-tempo:#F2C14E;--t-interval:#F07F5F;--t-long:#B49AE6;--t-indoor:#8FA3FF;--t-rest:#55635E;--t-unknown:#84918B;
+ --brand:#2FE39A;--accent:#F2A65A;--danger:#F07F5F;
+ --t-zone2:#2FE39A;--t-recovery:#38C8FF;--t-tempo:#FFD23F;--t-interval:#FF6B4A;--t-long:#B27CFF;--t-indoor:#6E8BFF;--t-rest:#55635E;--t-unknown:#84918B;
  --r:10px;--r-s:6px;--pill:999px;
  --ease:cubic-bezier(.2,.7,.3,1);
  color-scheme:dark;
@@ -29,10 +29,11 @@ aside{width:92px;position:fixed;inset:0 auto 0 0;background:var(--rail);padding:
 .brand-sub{display:none}
 nav{display:grid;gap:4px;margin-top:28px;width:100%}
 nav button{border:0;background:none;color:var(--muted);padding:10px 4px;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;gap:6px;font-size:0;transition:color .2s var(--ease),background .2s var(--ease)}
-nav button svg{width:22px;height:22px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+nav button svg{width:24px;height:24px;flex:none;stroke:var(--ic,currentColor);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--ic) 35%,transparent))}
+nav button[data-tab=today]{--ic:#FFB547}nav button[data-tab=plan]{--ic:#2FE39A}nav button[data-tab=profile]{--ic:#38C8FF}nav button[data-tab=journal]{--ic:#B27CFF}nav button[data-tab=connections]{--ic:#5B9DFF}
 nav button .label::after{content:attr(data-short);font-size:11px;font-weight:600;letter-spacing:.2px}
 nav button:hover{color:var(--text);background:var(--panel)}
-nav .active{color:var(--text);background:var(--panel-2);box-shadow:inset 3px 0 0 var(--accent)}
+nav .active{color:var(--text);background:color-mix(in srgb,var(--ic) 16%,transparent);box-shadow:inset 3px 0 0 var(--ic)}
 .aside-bottom{margin-top:auto;font-size:0}
 .aside-bottom .dot{width:8px;height:8px;margin:0}
 .aside-bottom p{display:none}
@@ -55,14 +56,16 @@ h2{font-size:16px;font-weight:700;margin:0 0 14px}
 .card-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .card-title h2{margin:0;display:flex;gap:10px;align-items:center}
 .card-title>span{font-size:12px;color:var(--muted)}
-.step{display:inline-grid;place-items:center;width:26px;height:26px;font-size:12px;color:var(--accent);border:1px solid var(--line-2);border-radius:50%}
+.step{display:inline-grid;place-items:center;width:28px;height:28px;font-size:12px;font-weight:800;color:#1B1206;background:var(--accent);border-radius:50%;box-shadow:0 0 12px rgba(242,166,90,.45)}
 .today-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(340px,1fr);gap:18px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 
 /* ---------- KPI strip ---------- */
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:18px}
 .kpi{background:var(--panel);padding:16px 20px}
-.kpi span{display:block;font-size:13px;color:var(--muted);font-weight:500}
+.kpi span{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);font-weight:600}
+.kpi span svg{width:18px;height:18px;stroke:var(--ic);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--ic) 40%,transparent))}
+.kpi[data-ic=pulse]{--ic:#FFB547}.kpi[data-ic=plan]{--ic:#2FE39A}.kpi[data-ic=target]{--ic:#38C8FF}.kpi[data-ic=bolt]{--ic:#FF6B4A}
 .kpi strong{display:block;font-size:34px;font-weight:700;line-height:1.15;margin-top:6px;letter-spacing:-.5px}
 .kpi strong small{font-size:14px;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
 .kpi.lead strong{color:var(--accent)}
@@ -116,7 +119,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:6px 0 4px}
 .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .chart-legend .planned{border:1.5px solid var(--line-2)}
-.coach-avatar{display:inline-grid;place-items:center;background:var(--panel-2);border:1px solid var(--accent);color:var(--accent);border-radius:50%;width:30px;height:30px;font-size:15px;font-weight:800}
+.coach-avatar{display:inline-grid;place-items:center;background:var(--brand);border:0;color:#06281A;box-shadow:0 0 12px rgba(47,227,154,.45);border-radius:50%;width:30px;height:30px;font-size:15px;font-weight:800}
 .chat-card{padding:18px}
 #messages{height:300px;overflow-y:auto;padding:2px;display:flex;flex-direction:column}
 .message{font-size:14px;padding:10px 14px;background:var(--panel-2);border-radius:var(--r);margin-bottom:10px;white-space:pre-wrap;line-height:1.65;max-width:92%;align-self:flex-start;color:var(--text-2)}
@@ -158,7 +161,7 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
 .actual-result .ring{grid-column:1;grid-row:1/span 3;width:50px;height:50px;display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--text)}
 .actual-result .ring svg{grid-area:1/1;width:50px;height:50px;transform:rotate(-90deg)}
 .actual-result .ring circle{fill:none;stroke:var(--panel-2);stroke-width:3.5}
-.actual-result .ring .ring-fill{stroke:var(--accent);stroke-linecap:round}
+.actual-result .ring .ring-fill{stroke:var(--type,var(--accent));stroke-linecap:round}
 .actual-result .ring b{grid-area:1/1}
 .actual-result strong{font-size:16px;color:var(--text)}
 .actual-result button{justify-self:start;margin-top:4px;padding:6px 12px;font-size:12px}
@@ -251,7 +254,7 @@ body.demo .llm-disabled{opacity:.6}
  .aside-bottom{display:none}
  nav{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;display:grid;grid-template-columns:repeat(5,1fr);gap:0;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--rail);border-top:1px solid var(--line)}
  nav button{padding:6px 2px;min-height:52px;justify-content:center}
- nav .active{box-shadow:inset 0 2px 0 var(--accent)}
+ nav .active{box-shadow:inset 0 2px 0 var(--ic)}
  main{margin-left:0;padding:0 14px 96px}
  header{height:48px}
  .kpi-row{grid-template-columns:1fr 1fr}

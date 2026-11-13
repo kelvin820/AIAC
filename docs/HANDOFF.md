@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：使用者要求圖示更鮮豔（參考 Coach Watts）。側欄每個分頁一個鮮豔顏色（今日橘、課表綠、我 青、日誌紫、資料藍，CSS `--ic`），選中時整格以同色淡底＋色條標示；KPI 標籤加彩色小圖示；訓練類型色提高飽和度，課表進度環改用該天的訓練類型色；品牌綠改為 `#2FE39A`。
+- **狀態**：已推分支，待合併（PR #2）。
+- **測試**：node --test 34 項通過；build-demo 成功；截圖已更新。
+- **未完成／注意**：使用 `color-mix()`（現代瀏覽器皆支援）。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：使用者看過暖色版後認為「太 low」，並以 Stryd 儀表板為參考。改為深色、資料優先的效能儀表板（自創配色，未使用 Stryd 品牌元素）：深綠黑底、窄圖示側欄、杏桃色只標每區最重要的數字、訓練類型以顏色編碼（Zone2 綠、恢復藍、Tempo 黃、Interval 珊瑚、長跑紫、室內藍紫、休息灰，CSS `[data-type]`）。今日頁新增 KPI 列（`#kpis`：本週實際、課表規劃、課表完成度、品質課）與每週預計／實際長條圖（SVG，`weekChart()`）；週節奏卡片移除重複的大數字。頁面大標題縮小為精簡標題列。字體由 Nunito 改為 Archivo（OFL，自帶 `public/assets/fonts/archivo-latin.woff2`）。
 - **狀態**：已推分支，待使用者看效果後合併（PR #2）。
 - **測試**：node --test 34 項通過；build-demo 成功；Playwright 截圖桌面／手機各頁、試用版字體載入且無 console 錯誤。截圖已更新 `docs/aiac-redesign-*.png`。
