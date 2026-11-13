@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：PR #7（健康）已合併並部署。記錄使用者決定：第 8 期 8b「真人教練帶多位學員」暫不做；整體推進方向由使用者檢視後再決定。借用計畫第 1–7 期皆已合併到 `main`。
+- **狀態**：本則只改文件，推在分支上，未開 PR（可併入下一個 PR）。
+- **測試**：未改程式碼；`main` 上 node --test 85 項通過。
+- **未完成／注意**：待決定：8a AI 教練強化、首頁 KPI 應固定以今天所在週計算（見前一則）、Garmin 健康資料匯入、結構化課表匯出到手錶、FIT 功率解析（功率曲線／FTP 演進）。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成借用計畫第 7 期 Fitness／Health。新增 `src/wellness.mjs`（純函式）：`WELLNESS_FIELDS`、`validateWellness`、`wellnessAction`（save 依日期覆蓋、拒絕未來日期；delete；apply-threshold 只允許安靜心率與體重且經 `validateAthlete`）、`baseline`（前 28 天、至少 7 筆、不含當天）、`readiness`（具名警訊：HRV、安靜心率、睡眠 <6h、疲勞／痠痛 ≥4；good／watch／low／insufficient／none）、`wellnessView`（近一年紀錄、準備度、基準、閾值建議）、`validateStoredWellness`。狀態新增 `state.wellness`；`POST /api/wellness` 與試用版同名；`view()` 新增 `wellnessView`；備份含健康紀錄並驗證；LLM 輸入加入 `readiness`（README 已更新）。前端：側欄「健康」分頁（第 7 個，紅色；手機底部導覽改 10 欄）：紀錄表單、準備度卡（訊號清單與規則說明）、更新閾值建議、14/30/90/365 天趨勢（睡眠長條、安靜心率與 HRV 含個人基準帶、體重）、近期紀錄表（編輯／刪除）；首頁新增一行今日準備度。截圖 `docs/aiac-health.png`。
 - **狀態**：已推分支，待合併。
 - **測試**：node --test 85 項通過（新增 `tests/wellness.test.mjs` 7 項、HTTP 健康端點）；build-demo 成功；Playwright 以 30 天示範健康資料實際填寫、判定、套用閾值、切換期間，本機與試用版無 console 錯誤。
