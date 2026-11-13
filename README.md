@@ -38,6 +38,12 @@ node --env-file-if-exists=.env server.mjs
 [{"sourceId":"workout-1","startedAt":"2026-11-11T07:00:00+08:00","durationSeconds":2400,"distanceMeters":6000,"avgHeartRate":140,"sport":"running","name":"晨跑"}]
 ```
 
+## 訓練負荷與狀態
+
+在「運動員與記憶」設定訓練閾值（最大心率、安靜心率、LTHR、臨界配速、FTP、體重，都可留白）。每筆活動依可用資料計算負荷分數，順序為：功率 TSS → 心率 HRSS → 跑步配速分數 → 心率估算 → 只有時間的估算。每筆都標示計算方式與可信度，估算不會當成量測值。
+
+首頁顯示體能（CTL，42 天加權平均）、疲勞（ATL，7 天）與狀態（TSB＝CTL－ATL），以及 7 天變化與近 42 天走勢；資料不足約 6 週時會提示數值尚未穩定。全部在本地計算，不呼叫 LLM。公式改寫自 Coach Watts（Apache 2.0），見 `docs/THIRD_PARTY.md`。
+
 ## 自帶 LLM 與費用
 
 「資料與分析設定」貼自己的 API Key、Base URL 與模型 ID。接口需相容 `/chat/completions`、`response_format: json_object`、`max_tokens`。支援 HTTPS，本機模型可用 localhost HTTP。

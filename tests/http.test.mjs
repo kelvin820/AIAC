@@ -12,6 +12,9 @@ test('HTTP coaching loop, accept/reject, stale proposal, and restart persistence
  async function call(path,body){const r=await fetch(`http://127.0.0.1:${port}/api/`+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await r.json();return {status:r.status,data};}
  try{
   await start();assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
+  const athlete=await call('athlete',{athlete:{maxHeartRate:190,restingHeartRate:50,lthr:'abc'}});assert.equal(athlete.status,400);assert.match(athlete.data.error,/lthr/);
+  const saved=(await call('athlete',{athlete:{maxHeartRate:190,restingHeartRate:50}})).data;assert.equal(saved.athlete.maxHeartRate,190);assert.equal(saved.load.athleteComplete,true);assert.equal(saved.load.today,null);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/assets/fonts/archivo-latin.woff2`)).headers.get('content-type'),'font/woff2');
   let s=(await call('state')).data;s.context.date=s.plan[1].id;s.profile.name='HTTP Test';
   s=(await call('settings',{profile:s.profile,context:s.context})).data;
   s=(await call('coach',{kind:'morning',message:'早安，今天怎麼練？'})).data;assert.equal(s.recommendations.length,1);

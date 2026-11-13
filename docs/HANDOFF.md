@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成 Coach Watts 借用計畫第 1 期「訓練負荷引擎與運動員檔案」。新增 `src/training-load.mjs`（純函式，本機與試用版共用）：`activityLoad`（功率 TSS → 心率 HRSS → 配速分數 → 心率估算 → 時間估算，每筆附 source／confidence／method）、`performanceSeries`（逐日 CTL 42 天／ATL 7 天，含無訓練日）、`formStatus`、`loadSummary`、`validateAthlete`。狀態新增 `state.athlete`（獨立於 profile，避免舊備份還原失敗）；`POST /api/athlete` 與試用版 `athlete`；`view()` 加 `load`；備份含 athlete，舊備份缺 athlete 時用預設值。介面：「我」頁訓練閾值表單（臨界配速以 分:秒 輸入）、首頁「訓練負荷與狀態」卡片（三數值、7 天變化、狀態標籤、42 天走勢、估算提示）、活動列顯示負荷與可信度。`docs/THIRD_PARTY.md` 記錄 Apache 2.0 出處；README 新增說明。使用者決定 Coaching 兩種都要，已寫入計畫。
+- **狀態**：已推分支，待合併（PR #2）。
+- **測試**：node --test 43 項通過（新增 `tests/training-load.test.mjs` 9 項、HTTP 測試補 athlete 端點與字體 Content-Type）。以 6 週示範資料實際啟動 server 截圖確認。
+- **未完成／注意**：下一步第 2 期 Performance 頁（PMC 大圖、期間切換、強度分布、每週量、個人最佳）。FIT 匯入目前沒有 normalizedPower 欄位，功率 TSS 只在 Strava weightedWatts 或日後補上 NP 時生效。配速分數未計坡度。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：深讀 watt-mind/coach（Coach Watts，Apache 2.0），寫成 `docs/COACH_WATTS_ADOPTION.md`：授權與借用原則、九個模組對照、可借用的公式（TSS／HRSS／估算、CTL／ATL／TSB、週目標與恢復週、結構化課表格式）、8 期分期計畫。未改程式碼。
 - **狀態**：已推分支（PR #2）。
 - **測試**：未改程式碼。

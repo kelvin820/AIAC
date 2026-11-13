@@ -14,13 +14,14 @@ import {fitActivityData} from './src/fit-core.mjs';
 import {syncStrava,syncStravaIfDue} from './src/strava-sync.mjs';
 import {backupLimit,exportBackup,restoreBackup} from './src/backup.mjs';
 import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './src/plan-weeks.mjs';
+import {loadSummary,validateAthlete} from './src/training-load.mjs';
 
 const garmin=createGarmin(process.env.GARMIN_PERSONAL_API_KEY);
 const dataDir=process.env.DATA_DIR||'data';const store=await openStore(dataDir),vault=await openVault(dataDir);const port=Number(process.env.PORT||3140);let busy=false;
 const base=`http://127.0.0.1:${port}`,mcp=createMcp(vault,base+'/auth/mcp/callback'),strava=createStrava(vault,base+'/auth/strava/callback');
 const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType]));
 function guardRecordedPlan(s,plan){if(plan&&plan.some((p,i)=>s.activities.some(a=>a.planId===p.id)&&(p.type!==s.plan[i].type||p.minutes!==s.plan[i].minutes)))throw Error('提案更動了已有實際結果的課表，請重新規劃尚未執行的課程');}
-function view(s){return {...s,budget:budget(s),comparison:comparison(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{configured:garmin.configured()},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+function view(s){return {...s,budget:budget(s),comparison:comparison(s),load:loadSummary(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,garmin:{configured:garmin.configured()},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
 async function body(req,max){return JSON.parse((await raw(req,max)).toString()||'{}');}
@@ -112,6 +113,8 @@ http.createServer(async(req,res)=>{
     try{new Intl.DateTimeFormat('en',{timeZone:b.context.timezone});}catch{throw Error('請提供有效時區');}
     s.profile=Object.fromEntries(['name','goal','experience','preferences','constraints','weeklyMinutes'].map(k=>[k,b.profile[k]]));s.profile.weeklyMinutes=Number(s.profile.weeklyMinutes);
     s.context=Object.fromEntries(['date','timezone','location','minutes','sleep','feeling','weather','motivation','equipment'].map(k=>[k,b.context[k]??'']));s.context.minutes=Number(s.context.minutes);
+   }else if(req.url==='/api/athlete'){
+    s.athlete=validateAthlete(b.athlete);
    }else if(req.url==='/api/backup-restore'){
     s=restoreBackup(s,b);
    }else if(req.url==='/api/plan-week'){
