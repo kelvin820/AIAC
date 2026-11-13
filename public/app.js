@@ -689,9 +689,52 @@ function structureSteps(st){return `<ol class="st-steps">${st.steps.map(s=>s.typ
 function renderStructure(date,{open=false,summary='課表內容'}={}){const st=state.workouts?.structures?.[date];if(!st)return '';return `<details class="structure"${open?' open':''}><summary>${summary}<span>${st.plannedMinutes} 分鐘 · ${esc(st.basis.note)}</span></summary>${structureTimeline(st)}${structureSteps(st)}</details>`;}
 const checkWords={in:'在目標內',above:'高於目標',below:'低於目標',faster:'比目標快',slower:'比目標慢',unknown:'無法比對'};
 function renderExecution(date){const c=state.workouts?.checks?.[date];if(!c)return '';return `<div class="st-check"><h3>執行比對</h3><p><strong>${c.actualMinutes}</strong> / ${c.plannedMinutes} 分鐘（${c.timeRatio}%）</p>${c.checks.map(k=>`<p class="st-check-row" data-result="${k.result}"><span>${esc(k.metric)}</span><b>${k.value===null?'—':k.of!==undefined?`${k.value} / ${k.of} 組（共 ${k.laps} 圈）`:k.target?.kind==='pace'?formatPace(k.value)+' /km':k.value+(k.target?.kind==='hr'?' bpm':'')}</b>${k.target?`<em>目標 ${esc(fmtTarget(k.target))}</em>`:''}<i>${checkWords[k.result]}</i>${k.note?`<small>${esc(k.note)}</small>`:''}</p>`).join('')}<p class="small">只比對量測值：平均值含暖身與緩和，不代表每段都達標，也不推論訓練效果。</p></div>`;}
+let wPeriod=30,wEditing=false;
+const wFields=['sleepHours','restingHr','hrv','weightKg','sleepQuality','fatigue','soreness','stress','mood'];
+const readinessIcons={good:'●',watch:'▲',low:'■',insufficient:'○',none:'○'};
+function wellnessChart(entries,key,{title,unit,from,to,bars=false,baseline=null,digits=0}){
+ const pts=entries.filter(e=>e[key]!==null&&e.date>=from&&e.date<=to);
+ const head=`<div class="card-title"><h2>${title}</h2><span>${pts.length?`最新 ${pts.at(-1)[key].toFixed(digits)} ${unit}`:'尚無資料'}</span></div>`;
+ if(pts.length<2&&!(bars&&pts.length))return `<article class="card health-chart">${head}<p class="muted">至少需要兩天紀錄才能畫出趨勢。</p></article>`;
+ const days=Math.max(1,(Date.parse(to)-Date.parse(from))/864e5),W=520,H=170,L=40,R=8,T=10,B=24,pw=W-L-R,ph=H-T-B;
+ const vals=pts.map(p=>p[key]),band=baseline?.mean!=null?[baseline.mean-baseline.sd,baseline.mean+baseline.sd]:null;
+ let lo=Math.min(...vals,...(band??[])),hi=Math.max(...vals,...(band??[]));if(bars)lo=0;const pad=(hi-lo)*.15||1;if(!bars)lo-=pad;hi+=pad;
+ const x=d=>L+(Date.parse(d)-Date.parse(from))/864e5/days*pw,y=v=>T+(hi-v)/(hi-lo)*ph,fmt=v=>v.toFixed(digits);
+ const ticks=[lo,(lo+hi)/2,hi];
+ const body=bars?pts.map(p=>{const w=Math.max(2,pw/days*.7);return `<rect class="w-bar${p[key]<6&&key==='sleepHours'?' short':''}" x="${(x(p.date)-w/2).toFixed(1)}" y="${y(p[key]).toFixed(1)}" width="${w.toFixed(1)}" height="${(y(lo)-y(p[key])).toFixed(1)}"><title>${p.date} ${fmt(p[key])} ${unit}</title></rect>`;}).join(''):`<polyline class="w-line" points="${pts.map(p=>`${x(p.date).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ')}"/>${pts.map(p=>`<circle class="w-dot" cx="${x(p.date).toFixed(1)}" cy="${y(p[key]).toFixed(1)}" r="3"><title>${p.date} ${fmt(p[key])} ${unit}</title></circle>`).join('')}`;
+ return `<article class="card health-chart" data-metric="${key}">${head}<svg class="w-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${title}趨勢">${ticks.map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-6}" y="${y(v)+4}" text-anchor="end">${v.toFixed(key==='weightKg'||key==='sleepHours'?1:0)}</text>`).join('')}${band?`<rect class="w-band" x="${L}" y="${y(band[1]).toFixed(1)}" width="${pw}" height="${(y(band[0])-y(band[1])).toFixed(1)}"><title>個人基準 ${baseline.mean} ± ${baseline.sd}</title></rect>`:''}${body}<text class="axis" x="${L}" y="${H-6}">${shortDate(from)}</text><text class="axis" x="${W-R}" y="${H-6}" text-anchor="end">${shortDate(to)}</text></svg>${band?'<div class="chart-legend"><span><i class="lg-band"></i>近 28 天個人基準（平均 ± 1 標準差）</span></div>':''}</article>`;
+}
+function renderHealth(){
+ const V=state.wellnessView;if(!V)return;
+ const r=V.readiness;
+ $('#readiness-card').innerHTML=`<div class="card-title"><h2>今日準備度</h2><span>${esc(V.today)}</span></div><div class="readiness-status" data-status="${r.status}"><b>${readinessIcons[r.status]}</b><strong>${esc(r.label)}</strong></div>${r.signals.length?`<ul class="readiness-signals">${r.signals.map(x=>`<li data-state="${x.state}"><span>${esc(x.label)}</span><b>${x.value}</b><em>${esc(x.text)}</em></li>`).join('')}</ul>`:'<p class="muted">填寫今天的紀錄後，這裡會列出各項指標與你個人基準的比較。</p>'}<p class="small">規則：HRV 低於基準 1 個標準差、安靜心率高於基準 1 個標準差或多 5 bpm、睡眠少於 6 小時、疲勞或痠痛 4 分以上，各算一個警訊。0 個為良好、1 個留意、2 個以上偏低。基準需至少 7 天資料。這是估算，不是醫療判斷；身體不適請休息並尋求專業協助。</p>`;
+ const flagged=r.signals.filter(x=>x.state==='flag').map(x=>x.label);
+ $('#home-readiness').innerHTML=r.status==='none'?`<button type="button" class="home-readiness" data-tab="health" data-status="none">今天還沒記錄睡眠與身體狀況 → 健康</button>`:`<button type="button" class="home-readiness" data-tab="health" data-status="${r.status}"><b>${readinessIcons[r.status]}</b>今日準備度：${esc(r.label)}${flagged.length?`（${esc(flagged.join('、'))}）`:''}<span>健康 →</span></button>`;
+ const sug=Object.entries(V.suggestions);
+ $('#wellness-suggest').hidden=!sug.length;
+ $('#wellness-suggest').innerHTML=`<div class="card-title"><h2>更新訓練閾值？</h2></div>${sug.map(([field,x])=>`<div class="suggest-row"><span>${esc(x.text)}；目前設定 ${state.athlete?.[field]??'未填'}</span><button type="button" class="secondary" data-apply-threshold="${field}">更新${field==='weightKg'?'體重':'安靜心率'}為 ${x.value}</button></div>`).join('')}<p class="small">更新後會重新計算負荷、心率區間與體重目標。不會自動套用。</p>`;
+ const from=addDays(V.today,-(wPeriod-1));
+ document.querySelectorAll('[data-wperiod]').forEach(b=>b.classList.toggle('active',Number(b.dataset.wperiod)===wPeriod));
+ $('#wellness-charts').innerHTML=[
+  wellnessChart(V.entries,'sleepHours',{title:'睡眠',unit:'小時',from,to:V.today,bars:true,digits:1}),
+  wellnessChart(V.entries,'restingHr',{title:'安靜心率',unit:'bpm',from,to:V.today,baseline:V.baselines.restingHr}),
+  wellnessChart(V.entries,'hrv',{title:'HRV',unit:'ms',from,to:V.today,baseline:V.baselines.hrv}),
+  wellnessChart(V.entries,'weightKg',{title:'體重',unit:'kg',from,to:V.today,digits:1}),
+ ].join('');
+ const recent=[...V.entries].reverse().slice(0,14),cell=v=>v===null?'<td class="muted">—</td>':`<td>${v}</td>`;
+ $('#wellness-history').innerHTML=recent.length?`<div class="lap-table"><table><thead><tr><th>日期</th><th>睡眠</th><th>安靜心率</th><th>HRV</th><th>體重</th><th>睡眠品質</th><th>疲勞</th><th>痠痛</th><th>壓力</th><th>心情</th><th></th></tr></thead><tbody>${recent.map(e=>`<tr><td>${e.date}</td>${wFields.map(k=>cell(e[k])).join('')}<td class="w-actions"><button type="button" class="text-button" data-wedit="${e.date}">編輯</button><button type="button" class="text-button danger-text" data-wdelete="${e.date}">刪除</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">還沒有紀錄。</p>';
+ if(!wEditing){const f=$('#wellness-form');if(!f.elements.date.value)f.elements.date.value=V.today;}
+}
+$('#wellness-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const v=formValue('#wellness-form');state=await api('wellness',{action:'save',entry:v});wEditing=false;$('#wellness-form').reset();render();notice(`已儲存 ${v.date} 的健康紀錄。`);});});
+document.querySelector('#health').addEventListener('click',e=>{
+ const per=e.target.closest('[data-wperiod]');if(per){wPeriod=Number(per.dataset.wperiod);renderHealth();return;}
+ const ed=e.target.closest('[data-wedit]');if(ed){const entry=state.wellnessView.entries.find(x=>x.date===ed.dataset.wedit);wEditing=true;fill('#wellness-form',Object.fromEntries(['date','notes',...wFields].map(k=>[k,entry[k]??''])));$('#wellness-card').scrollIntoView?.({block:'start'});return;}
+ const del=e.target.closest('[data-wdelete]');if(del){if(!window.confirm(`確定刪除 ${del.dataset.wdelete} 的健康紀錄？`))return;action(async()=>{state=await api('wellness',{action:'delete',date:del.dataset.wdelete});render();notice('紀錄已刪除。');});return;}
+ const ap=e.target.closest('[data-apply-threshold]');if(ap)action(async()=>{state=await api('wellness',{action:'apply-threshold',field:ap.dataset.applyThreshold});render();notice('訓練閾值已更新，負荷與目標已重新計算。');});
+});
 function render(){
  $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
- const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();
+ const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();
  renderAthlete();
  $('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
  const r=state.recommendations.at(-1);

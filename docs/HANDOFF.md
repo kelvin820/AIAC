@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 7 期 Fitness／Health。新增 `src/wellness.mjs`（純函式）：`WELLNESS_FIELDS`、`validateWellness`、`wellnessAction`（save 依日期覆蓋、拒絕未來日期；delete；apply-threshold 只允許安靜心率與體重且經 `validateAthlete`）、`baseline`（前 28 天、至少 7 筆、不含當天）、`readiness`（具名警訊：HRV、安靜心率、睡眠 <6h、疲勞／痠痛 ≥4；good／watch／low／insufficient／none）、`wellnessView`（近一年紀錄、準備度、基準、閾值建議）、`validateStoredWellness`。狀態新增 `state.wellness`；`POST /api/wellness` 與試用版同名；`view()` 新增 `wellnessView`；備份含健康紀錄並驗證；LLM 輸入加入 `readiness`（README 已更新）。前端：側欄「健康」分頁（第 7 個，紅色；手機底部導覽改 10 欄）：紀錄表單、準備度卡（訊號清單與規則說明）、更新閾值建議、14/30/90/365 天趨勢（睡眠長條、安靜心率與 HRV 含個人基準帶、體重）、近期紀錄表（編輯／刪除）；首頁新增一行今日準備度。截圖 `docs/aiac-health.png`。
+- **狀態**：已推分支，待合併。
+- **測試**：node --test 85 項通過（新增 `tests/wellness.test.mjs` 7 項、HTTP 健康端點）；build-demo 成功；Playwright 以 30 天示範健康資料實際填寫、判定、套用閾值、切換期間，本機與試用版無 console 錯誤。
+- **未完成／注意**：健康資料只能手動輸入，Garmin 健康資料尚未接。已知 UX 問題（非本期造成）：首頁 KPI 依「課表頁目前選取的週」計算，若在課表頁瀏覽到其他週，首頁的「本週」會顯示那一週，直到新的一天自動跳回本週；建議改為首頁固定以今天所在週計算。下一步第 8 期 Coaching（8a AI 教練強化）。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成借用計畫第 6 期結構化 Workout。新增 `src/workout-structure.mjs`（純函式）：`INTENSITY`（恢復／輕鬆／節奏／間歇對應配速倍數、閾值心率比例、RPE）、`targetBasis`（臨界配速 → LTHR → 最大心率 90% → RPE）、`buildStructure`（依課表類型與分鐘產生步驟，總時間恆等於分鐘數；Interval 需 ≥38 分、Tempo ≥30 分，否則改穩定有氧並加 note）、`validateStructure`（重複組須含 rest）、`mainSteps`、`executionCheck`（時間比、平均心率或平均配速對主課目標、間歇分圈命中數；無分圈標 unknown）、`workoutsView`（今天前 35 天到後 70 天的課表日，跳過壺鈴日）。`view()` 新增 `workouts`；LLM 輸入加入 `todayWorkout`（README 已更新）。前端：共用 `renderStructure`（強度時間軸＋步驟清單）出現在首頁今日課表、課表每天、行事曆當天；單次訓練詳情新增執行比對。截圖 `docs/aiac-structured-workout.png`。
 - **狀態**：已推分支，待合併。
 - **測試**：node --test 78 項通過（新增 `tests/workout-structure.test.mjs` 6 項，含 6 種類型 × 9 種分鐘數的總時間與驗證不變量；測試抓到 30 分鐘 Interval 會超時的 bug，已改為 38 分鐘門檻）；build-demo 成功；Playwright 本機與試用版無 console 錯誤。
