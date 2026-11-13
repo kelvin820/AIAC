@@ -210,9 +210,59 @@ function renderLoad(){
  $('#load-card').innerHTML=`<div class="card-title"><h2>訓練負荷與狀態</h2><span class="form-chip" data-form="${esc(t.status.key)}">${esc(t.status.label)}</span></div><div class="load-metrics">${metric('ctl','體能','CTL',t.ctl,c?.ctl)}${metric('atl','疲勞','ATL',t.atl,c?.atl)}${metric('tsb','狀態','TSB',t.tsb,c?.tsb)}</div><p class="load-advice">${esc(t.status.advice)}</p>${loadSparkline(L.series)}<div class="chart-legend"><span><i class="lg-ctl"></i>體能</span><span><i class="lg-atl"></i>疲勞</span><span><i class="lg-tsb"></i>狀態</span></div><p class="small">${young?`目前只有 ${L.historyDays} 天紀錄，體能需約 6 週資料才穩定。`:''}${est?`${est} 筆活動的負荷為估算。`:''}數值為本地計算，不呼叫 LLM。</p>${setup}`;
 }
 function parsePace(text){if(!text)return null;const m=/^(\d{1,2}):([0-5]\d)$/.exec(text.trim());if(!m)throw Error('臨界配速請用「分:秒」格式，例如 5:00');return Number(m[1])*60+Number(m[2]);}
+let perfPeriod=90;
+const shortDate=d=>d.slice(5).replace('-','/');
+function addDays(date,n){const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function pmcChart(points){
+ if(points.length<2)return '<p class="muted">至少需要兩天紀錄才能畫出走勢。</p>';
+ const W=1000,H=300,L=40,R=12,T=14,B=30,pw=W-L-R,ph=H-T-B;
+ const rawHi=Math.max(10,...points.flatMap(p=>[p.ctl,p.atl,p.tsb])),rawLo=Math.min(0,...points.map(p=>p.tsb)),mag=10**Math.floor(Math.log10((rawHi-rawLo)/4)),step=[1,2,5,10].map(m=>m*mag).find(v=>v>=(rawHi-rawLo)/4),lo=Math.floor(rawLo/step)*step,hi=Math.ceil(rawHi/step)*step,span=hi-lo;
+ const x=i=>L+i*pw/(points.length-1),y=v=>T+(hi-v)/span*ph,maxLoad=Math.max(1,...points.map(p=>p.load)),bw=Math.max(1,pw/points.length*.7);
+ const ticks=Array.from({length:Math.round(span/step)+1},(_,i)=>lo+i*step),labelEvery=Math.ceil(points.length/7);
+ const line=k=>points.map((p,i)=>`${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(' ');
+ const area=`${x(0).toFixed(1)},${y(0).toFixed(1)} ${line('tsb')} ${x(points.length-1).toFixed(1)},${y(0).toFixed(1)}`;
+ return `<svg class="pmc" viewBox="0 0 ${W} ${H}" role="img" aria-label="體能、疲勞、狀態與每日負荷走勢">${ticks.map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}<line class="zero" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>${points.map((p,i)=>p.load?`<rect class="load" x="${(x(i)-bw/2).toFixed(1)}" y="${(T+ph-p.load/maxLoad*ph*.45).toFixed(1)}" width="${bw.toFixed(1)}" height="${(p.load/maxLoad*ph*.45).toFixed(1)}"/>`:'').join('')}<polygon class="tsb-area" points="${area}"/><polyline class="tsb" points="${line('tsb')}"/><polyline class="atl" points="${line('atl')}"/><polyline class="ctl" points="${line('ctl')}"/>${points.map((p,i)=>i%labelEvery===0||i===points.length-1?`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="${i===0?'start':i===points.length-1?'end':'middle'}">${shortDate(p.date)}</text>`:'').join('')}${points.map((p,i)=>`<rect class="hit" x="${(x(i)-pw/points.length/2).toFixed(1)}" y="${T}" width="${(pw/points.length).toFixed(1)}" height="${ph}"><title>${p.date}　體能 ${p.ctl.toFixed(1)}　疲勞 ${p.atl.toFixed(1)}　狀態 ${p.tsb.toFixed(1)}　負荷 ${p.load}</title></rect>`).join('')}</svg><div class="chart-legend"><span><i class="lg-ctl"></i>體能 CTL</span><span><i class="lg-atl"></i>疲勞 ATL</span><span><i class="lg-tsb"></i>狀態 TSB</span><span><i class="lg-load"></i>每日負荷</span></div>`;
+}
+function weeklyVolumeChart(acts){
+ const weeks=[...new Set(acts.map(a=>a.week))].sort();if(!weeks.length)return '<p class="muted">這段期間沒有活動。</p>';
+ const order=['Zone2','Recovery','Tempo','Interval','Long Run','Indoor','Unknown'];
+ const byWeek=weeks.map(w=>{const t={};for(const a of acts.filter(a=>a.week===w))t[a.type]=(t[a.type]||0)+a.minutes;return {w,t,total:Object.values(t).reduce((n,v)=>n+v,0)};});
+ const W=560,H=220,L=36,R=6,T=10,B=28,pw=W-L-R,ph=H-T-B,top=Math.max(60,Math.ceil(Math.max(...byWeek.map(w=>w.total))/60)*60),slot=pw/weeks.length,bw=Math.min(36,slot*.65),y=v=>T+ph-v/top*ph,every=Math.ceil(weeks.length/8);
+ const bars=byWeek.map((w,i)=>{let acc=0;const x=L+i*slot+(slot-bw)/2;return order.filter(k=>w.t[k]).map(k=>{const h=w.t[k]/top*ph;acc+=w.t[k];return `<rect class="bar" data-type="${esc(k)}" x="${x.toFixed(1)}" y="${y(acc).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"><title>${w.w} 週 · ${esc(typeNames[k]||'未分類')} ${Math.round(w.t[k])} 分鐘</title></rect>`;}).join('')+(i%every===0||i===weeks.length-1?`<text class="axis" x="${(x+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${shortDate(w.w)}</text>`:'');}).join('');
+ const used=order.filter(k=>byWeek.some(w=>w.t[k]));
+ return `<svg class="week-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="每週訓練分鐘">${[0,top/2,top].map(v=>`<line class="grid" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`).join('')}${bars}</svg><div class="chart-legend">${used.map(k=>`<span><i data-type="${esc(k)}"></i>${esc(typeNames[k]||'未分類')}</span>`).join('')}</div>`;
+}
+function intensityPanel(P,acts){
+ if(!P.threshold){$('#zone-basis').textContent='需要心率閾值';return `<p class="muted">設定最大心率或 LTHR 後，才能依心率區間分類。</p><button class="text-button" type="button" data-tab="profile">設定訓練閾值</button>`;}
+ $('#zone-basis').textContent=`閾值 ${P.threshold.bpm} bpm${P.threshold.estimated?'（以最大心率 90% 估）':''}`;
+ const withZone=acts.filter(a=>a.zone),total=withZone.reduce((n,a)=>n+a.minutes,0),missing=acts.length-withZone.length;
+ if(!withZone.length)return '<p class="muted">這段期間的活動都沒有心率資料。</p>';
+ return `<div class="zones">${P.zones.map((z,i)=>{const m=withZone.filter(a=>a.zone===z.key).reduce((n,a)=>n+a.minutes,0),pct=total?m/total*100:0,range=i===0?`< ${z.maxBpm}`:i===P.zones.length-1?`≥ ${P.zones[i-1].maxBpm}`:`${P.zones[i-1].maxBpm}–${z.maxBpm-1}`;return `<div class="zone-row" data-zone="${z.key}"><span class="zone-name">${esc(z.label)}<small>${range} bpm</small></span><span class="zone-bar"><svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" width="${pct.toFixed(1)}" height="10" rx="2"/></svg></span><span class="zone-val">${Math.round(m)} 分<small>${pct.toFixed(0)}%</small></span></div>`;}).join('')}</div><p class="small">依每筆活動的平均心率歸類，整筆時間計入同一區間，不是逐秒區間時間。${missing?`另有 ${missing} 筆沒有心率，未計入。`:''}</p>`;
+}
+function bestsPanel(bests){
+ if(!bests.length)return '<p class="muted">還沒有跑步紀錄。匯入含分圈的 FIT 檔後，會顯示最快 1 公里等紀錄。</p>';
+ const fmt=b=>b.kind==='pace'?`${formatPace(b.value)}<small>/km</small>`:b.kind==='distance'?`${(b.value/1000).toFixed(2)}<small>km</small>`:`${Math.floor(b.value/3600)}:${String(Math.floor(b.value%3600/60)).padStart(2,'0')}<small>時:分</small>`;
+ return bests.map(b=>`<div class="best"><span>${esc(b.label)}</span><strong>${fmt(b)}</strong><em>${esc(b.date)} · ${esc(b.name)}${b.note?' · '+esc(b.note):''}</em></div>`).join('');
+}
+function renderPerformance(){
+ const P=state.performance;if(!P)return;
+ const from=perfPeriod==='all'?'0000-00-00':addDays(P.today,-(perfPeriod-1));
+ const pts=P.pmc.filter(p=>p.date>=from),acts=P.activities.filter(a=>a.date>=from);
+ document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('active',String(perfPeriod)===b.dataset.period));
+ const minutes=acts.reduce((n,a)=>n+a.minutes,0),km=acts.reduce((n,a)=>n+(a.distanceMeters||0),0)/1000,load=acts.reduce((n,a)=>n+a.load,0),est=acts.filter(a=>a.confidence==='low').length;
+ const first=pts[0],last=pts.at(-1),weeks=pts.length/7,ramp=first&&last&&weeks>=1?(last.ctl-first.ctl)/weeks:null;
+ const icon=d=>`<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+ $('#perf-kpis').innerHTML=`<div class="kpi lead" data-ic="pulse"><span>${icon('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>')}訓練時間</span><strong>${(minutes/60).toFixed(1)}<small>小時</small></strong><em>${acts.length} 筆活動</em></div><div class="kpi" data-ic="plan"><span>${icon('<path d="M4 18c3-8 13-8 16 0"/><circle cx="12" cy="10" r="2"/>')}距離</span><strong>${km.toFixed(1)}<small>km</small></strong><em>有距離的活動合計</em></div><div class="kpi" data-ic="bolt"><span>${icon('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>')}總負荷</span><strong>${Math.round(load)}</strong><em>${est?`${est} 筆為估算`:'沒有估算值'}</em></div><div class="kpi" data-ic="target"><span>${icon('<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>')}體能變化</span><strong>${ramp===null?'—':(ramp>=0?'+':'')+ramp.toFixed(1)}<small>/ 週</small></strong><em>${first&&last?`CTL ${first.ctl.toFixed(1)} → ${last.ctl.toFixed(1)}`:'資料不足'}</em></div>`;
+ $('#pmc-range').textContent=pts.length?`${pts[0].date} — ${pts.at(-1).date}`:'';
+ $('#pmc-chart').innerHTML=P.pmc.length?`<div class="chart-scroll">${pmcChart(pts)}</div>`:'<p class="muted">匯入或登錄活動後，這裡會顯示長期走勢。</p>';
+ $('#weekly-volume').innerHTML=weeklyVolumeChart(acts);
+ $('#intensity').innerHTML=intensityPanel(P,acts);
+ $('#bests').innerHTML=bestsPanel(P.bests);
+}
+document.querySelector('.period-switch').addEventListener('click',e=>{const b=e.target.closest('[data-period]');if(!b||!state)return;perfPeriod=b.dataset.period==='all'?'all':Number(b.dataset.period);renderPerformance();});
 function render(){
  $('#mode').textContent=state.mode==='live'?'Live · 外部 LLM':'Mock · 流程示範';fill('#profile-form',state.profile);fill('#context-form',state.context);
- const b=state.budget;renderKpis(b);renderLoad();{const a=state.athlete||{};fill('#athlete-form',{maxHeartRate:a.maxHeartRate??'',restingHeartRate:a.restingHeartRate??'',lthr:a.lthr??'',thresholdPace:a.thresholdPaceSecPerKm?formatPace(a.thresholdPaceSecPerKm):'',ftp:a.ftp??'',weightKg:a.weightKg??''});}$('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${b.planned} 分鐘</span><span>預計品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。以活動實際時間加總；課表完成度與訓練目的另行比較。</p>`;
+ const b=state.budget;renderKpis(b);renderLoad();renderPerformance();{const a=state.athlete||{};fill('#athlete-form',{maxHeartRate:a.maxHeartRate??'',restingHeartRate:a.restingHeartRate??'',lthr:a.lthr??'',thresholdPace:a.thresholdPaceSecPerKm?formatPace(a.thresholdPaceSecPerKm):'',ftp:a.ftp??'',weightKg:a.weightKg??''});}$('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${b.planned} 分鐘</span><span>預計品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。以活動實際時間加總；課表完成度與訓練目的另行比較。</p>`;
  const r=state.recommendations.at(-1);$('#recommendation').innerHTML=r?`<div class="tag">${r.mode==='mock'?'MOCK · 非真實 AI 建議':esc(r.model)} · ${esc(r.at.slice(0,10))}</div><h2>今天，我們可以這樣練。</h2><p>${esc(r.text)}</p><p><strong>為什麼</strong><br>${esc(r.why)}</p><p><strong>Plan B</strong><br>${esc(r.planB)}</p><p class="small">缺失與不確定性：${r.uncertainties.map(esc).join(' · ')}</p>${planDiff(r)}`:'<div class="tag">下一步</div><h2>先告訴我，今天的你。</h2><p class="muted">填入今天的情境，產生第一份 Morning Coaching。<br>不用有完美的數據，從你知道的開始。</p>';
  $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'你':'AIAC 教練'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC 教練</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
  const latestStrava=state.activities.filter(activity=>activity.sources.some(source=>source.source==='strava')).sort((a,b)=>b.startedAt.localeCompare(a.startedAt))[0];

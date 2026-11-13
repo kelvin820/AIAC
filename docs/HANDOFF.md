@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 2 期 Performance。新增 `src/performance.mjs`（純函式）：`performanceData` 回傳完整 PMC、每筆活動摘要（週、分鐘、距離、負荷、可信度、類型、心率區間）、區間界線、個人最佳；`HR_ZONES`（LTHR 五區）、`thresholdHeartRate`（無 LTHR 用最大心率 90% 並標示估算）、`personalBests`（最快 1 km 分圈、5K／10K 以上最佳均速、最長距離／時間，只用量測值）。`view()` 新增 `performance`。前端新增「表現分析」分頁（側欄第 3 個，黃色）：期間切換（前端過濾，不重打 API）、4 個期間 KPI、PMC 大圖（整數刻度、每日負荷長條、原生 tooltip，手機可橫向捲動）、每週訓練量（依類型堆疊，未標類型時用對應課表類型）、強度分布、個人最佳。截圖 `docs/aiac-performance.png`。
+- **狀態**：已推分支，待合併（PR #2）。
+- **測試**：node --test 46 項通過（新增 `tests/performance.test.mjs` 3 項）；build-demo 成功，試用版表現頁切換期間無 console 錯誤。
+- **未完成／注意**：功率曲線、FTP 演進需要功率資料，FIT 解析尚未讀出功率，暫不做。強度分布是每筆平均心率歸類，不是逐秒；要逐秒需讀 FIT record 心率串流。下一步第 3 期 Activities 行事曆與 Workout 詳情。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成 Coach Watts 借用計畫第 1 期「訓練負荷引擎與運動員檔案」。新增 `src/training-load.mjs`（純函式，本機與試用版共用）：`activityLoad`（功率 TSS → 心率 HRSS → 配速分數 → 心率估算 → 時間估算，每筆附 source／confidence／method）、`performanceSeries`（逐日 CTL 42 天／ATL 7 天，含無訓練日）、`formStatus`、`loadSummary`、`validateAthlete`。狀態新增 `state.athlete`（獨立於 profile，避免舊備份還原失敗）；`POST /api/athlete` 與試用版 `athlete`；`view()` 加 `load`；備份含 athlete，舊備份缺 athlete 時用預設值。介面：「我」頁訓練閾值表單（臨界配速以 分:秒 輸入）、首頁「訓練負荷與狀態」卡片（三數值、7 天變化、狀態標籤、42 天走勢、估算提示）、活動列顯示負荷與可信度。`docs/THIRD_PARTY.md` 記錄 Apache 2.0 出處；README 新增說明。使用者決定 Coaching 兩種都要，已寫入計畫。
 - **狀態**：已推分支，待合併（PR #2）。
 - **測試**：node --test 43 項通過（新增 `tests/training-load.test.mjs` 9 項、HTTP 測試補 athlete 端點與字體 Content-Type）。以 6 週示範資料實際啟動 server 截圖確認。
