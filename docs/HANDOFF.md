@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：安裝第三方 skill `web-design-engineer`（ConardLi/garden-skills，MIT，v1.3.0）。完整內容在 `.agents/skills/web-design-engineer/`（Codex 讀這裡），`.claude/skills/web-design-engineer/SKILL.md` 只是轉介檔。安裝前已讀過 SKILL.md 並掃描 references：純 Markdown、無腳本、無下載執行或外傳資料指示。`AGENTS.md` 新增「共用 Skills」一節。
+- **狀態**：已推分支，待合併（與前一則同一個 PR）。
+- **測試**：未改程式碼。
+- **未完成／注意**：使用者要求「美化網頁」。依 skill 流程，改版前要先決定模式（Preserve／Overhaul）並宣告設計系統，取得使用者確認才動 `public/`；目前在等使用者確認方向。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：發現 `context.date`（「今天」）只在初次建立時設定，之後不會更新，跨日／跨週後 TODAY 標記、晨間 Coaching 與課表都停在舊日期。新增 `advanceToToday`／`todayIn`（`src/plan-weeks.mjs`）：每天第一次讀取狀態（本機 `GET /api/state`、試用版 `state`）時，把過時的情境日期改為當天；若目前課表正顯示舊日期所在週，跟著切到本週，舊週存入 `planHistory`。以新欄位 `lastOpenedOn` 判斷「新的一天」，當天手動選的過去日期保留到隔天。備份還原會清掉 `lastOpenedOn`，讓還原後第一次開啟也跳到今天。同步更新 README 與 `docs/M2_PROGRESS.md` 的過時描述。
 - **狀態**：已推分支，待合併。
 - **測試**：node --test 34 項通過（新增 `tests/plan-weeks.test.mjs` 4 項、demo 1 項；demo 備份測試的最後比對改為排除 `lastOpenedOn`）。以過時資料目錄實際啟動 server 驗證：開啟後日期與週次已切到今天，舊週保留在歷史。`node scripts/build-demo.mjs` 成功。
