@@ -151,8 +151,8 @@ http.createServer(async(req,res)=>{
    await store.save(s);send(res,200,view(s));
   }catch(e){send(res,400,{error:e.name==='TimeoutError'?'LLM 回應逾時，未修改課表':e.message});}finally{busy=false;}return;
  }
- const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/route-map.js':['route-map.js','text/javascript'],'/vendor/leaflet.js':['../node_modules/leaflet/dist/leaflet.js','text/javascript'],'/vendor/leaflet.css':['../node_modules/leaflet/dist/leaflet.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml']};
- if(req.method==='GET'&&files[req.url]){const [file,type]=files[req.url];res.writeHead(200,{'Content-Type':type+'; charset=utf-8'});res.end(await readFile(new URL('./public/'+file,import.meta.url)));}else send(res,404,{error:'Not found'});
+ const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/route-map.js':['route-map.js','text/javascript'],'/vendor/leaflet.js':['../node_modules/leaflet/dist/leaflet.js','text/javascript'],'/vendor/leaflet.css':['../node_modules/leaflet/dist/leaflet.css','text/css'],'/assets/author-mark.svg':['assets/author-mark.svg','image/svg+xml'],'/assets/fonts/nunito-latin-wght.woff2':['assets/fonts/nunito-latin-wght.woff2','font/woff2']};
+ if(req.method==='GET'&&files[req.url]){const [file,type]=files[req.url];res.writeHead(200,{'Content-Type':type.startsWith('font/')?type:type+'; charset=utf-8'});res.end(await readFile(new URL('./public/'+file,import.meta.url)));}else send(res,404,{error:'Not found'});
 }).listen(port,'127.0.0.1',()=>console.log(`AIAC running at http://127.0.0.1:${port} · ${store.get().connections.llm.mode} · local data only`));
 
 let nextGarminSync=0;

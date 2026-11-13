@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：依 `web-design-engineer` skill 做第一版視覺改版（Redesign · Overhaul，溫暖療癒／Headspace 風，使用者選定）。重寫 `public/style.css`：暖米杏底、深綠文字（保留品牌）、杏桃強調色（取自 logo 圓點）、大圓角、膠囊按鈕、柔和陰影與入場動畫（尊重 prefers-reduced-motion）、內文 16px、手機改底部分頁列。字體 Nunito（OFL）自帶於 `public/assets/fonts/`，不連 Google；server 白名單與 `scripts/build-demo.mjs` 已加入字體。HTML 只換側欄 SVG 圖示與英文標題／小標為中文；`app.js` 只改顯示樣板：課表每天的實際結果改為 SVG 進度環＋一行摘要、今天加標記、對話角色中文化。表單欄位名稱、id、data-* 選擇器、API 都未改。
+- **狀態**：已推分支，待使用者看效果後合併。
+- **測試**：node --test 34 項通過；build-demo 成功；Playwright 截圖桌面與手機四個分頁無跑版，試用版字體載入且無 console 錯誤。截圖：`docs/aiac-redesign-*.png`。
+- **未完成／注意**：server CSP 為 `style-src 'self'`，會擋 inline `style` 屬性，動態樣式請用 class 或 SVG 屬性，不要放寬 CSP。中文字仍用系統字體（正黑體／蘋方）。尚未做深色模式；今日表單尚未改成問句卡片（等使用者回饋）。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：安裝第三方 skill `web-design-engineer`（ConardLi/garden-skills，MIT，v1.3.0）。完整內容在 `.agents/skills/web-design-engineer/`（Codex 讀這裡），`.claude/skills/web-design-engineer/SKILL.md` 只是轉介檔。安裝前已讀過 SKILL.md 並掃描 references：純 Markdown、無腳本、無下載執行或外傳資料指示。`AGENTS.md` 新增「共用 Skills」一節。
 - **狀態**：已推分支，待合併（與前一則同一個 PR）。
 - **測試**：未改程式碼。
