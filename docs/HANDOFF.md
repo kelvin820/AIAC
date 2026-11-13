@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 6 期結構化 Workout。新增 `src/workout-structure.mjs`（純函式）：`INTENSITY`（恢復／輕鬆／節奏／間歇對應配速倍數、閾值心率比例、RPE）、`targetBasis`（臨界配速 → LTHR → 最大心率 90% → RPE）、`buildStructure`（依課表類型與分鐘產生步驟，總時間恆等於分鐘數；Interval 需 ≥38 分、Tempo ≥30 分，否則改穩定有氧並加 note）、`validateStructure`（重複組須含 rest）、`mainSteps`、`executionCheck`（時間比、平均心率或平均配速對主課目標、間歇分圈命中數；無分圈標 unknown）、`workoutsView`（今天前 35 天到後 70 天的課表日，跳過壺鈴日）。`view()` 新增 `workouts`；LLM 輸入加入 `todayWorkout`（README 已更新）。前端：共用 `renderStructure`（強度時間軸＋步驟清單）出現在首頁今日課表、課表每天、行事曆當天；單次訓練詳情新增執行比對。截圖 `docs/aiac-structured-workout.png`。
+- **狀態**：已推分支，待合併。
+- **測試**：node --test 78 項通過（新增 `tests/workout-structure.test.mjs` 6 項，含 6 種類型 × 9 種分鐘數的總時間與驗證不變量；測試抓到 30 分鐘 Interval 會超時的 bug，已改為 38 分鐘門檻）；build-demo 成功；Playwright 本機與試用版無 console 錯誤。
+- **未完成／注意**：步驟不存檔，也還不能手動編輯或匯出到 Garmin／FIT workout。執行比對只用平均值與分圈摘要，未讀逐秒串流。下一步第 7 期 Fitness／Health。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：完成借用計畫第 5 期 Training Plan 與 My Plan。新增 `src/training-plan.mjs`（純函式）：`validatePlanSettings`、`planBlocks`、`weekTargets`（Coach Watts 週目標規則）、`layoutWeek`（依長跑日的固定分散模式 `DAY_PATTERNS`；品質課優先週二／週四相對位置，不與長跑或彼此相鄰；恢復週無品質課；比賽週依目標日期）、`recentWeeklyAverage`（含壺鈴課）、`generatePlan`、`protectedReason`（已過去／已有實際紀錄／已排壺鈴課）、`applyPreview`、`applyPlan`（只寫未受保護日、本週變動記入 revisions、舊執行中計畫標為 replaced）、`trainingPlanAction`（preview／apply／archive；賽事目標自動算週數）、`activePlanStatus`、`validateStoredPlans`。`coach.mjs` 的 `hasRecordedActivity` 改為 export 供共用。狀態新增 `state.trainingPlans`；`POST /api/training-plan`（preview 只回 `{preview}` 不存檔）與試用版同名路徑；`view()` 新增 `planStatus`；備份含計畫並驗證；LLM 輸入加入 `trainingPlan`（README 已更新）。前端在「課表」分頁新增「訓練計畫」卡（執行中狀態、表單、預覽：區塊條、每週目標與排入長條、前兩週與比賽週每日、套用說明）與「我的計畫」清單（重新產生、封存）。截圖 `docs/aiac-training-plan.png`。
 - **狀態**：已推分支，待合併。
 - **測試**：node --test 72 項通過（新增 `tests/training-plan.test.mjs` 9 項，含 2–7 天 × 4 種長跑日 × 各區塊的「高強度日不相鄰、分鐘合法」不變量；HTTP 預覽不存檔、錯誤與封存）；build-demo 成功；Playwright 於本機（6 週示範資料＋賽事目標）與試用版實際建立、預覽、套用、封存，無 console 錯誤。

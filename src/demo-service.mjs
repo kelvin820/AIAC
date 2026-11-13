@@ -4,6 +4,7 @@ import {loadSummary,validateAthlete,defaultAthlete} from './training-load.mjs';
 import {performanceData} from './performance.mjs';
 import {applyGoalAction,goalsSummary} from './goals.mjs';
 import {activePlanStatus,trainingPlanAction} from './training-plan.mjs';
+import {workoutsView} from './workout-structure.mjs';
 import {advanceToToday,ensurePlanWeek,hasPlanDate,selectPlanWeek,todayIn} from './plan-weeks.mjs';
 import {budget,guardRecordedPlan,mockCoach,validatePlan} from './coach.mjs';
 import {updateKettlebell} from '../public/kettlebell-core.js';
@@ -13,7 +14,7 @@ const key='aiac-browser-demo-v1';
 const version=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
 export function createDemoService(storage){
  let state;try{state=JSON.parse(storage.getItem(key)||'null')||initialState();state.athlete??=defaultAthlete();state.goals??=[];state.trainingPlans??=[];}catch{throw Error('無法讀取瀏覽器試用資料，請允許此網站的儲存權限或清除已損壞資料。');}
- function view(s){return {...structuredClone(s),mode:'mock',demo:true,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),connections:{...structuredClone(s.connections),llm:{...s.connections.llm,hasKey:false},mcp:{...s.connections.mcp,hasBearer:false},strava:{configured:false,connected:false}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+ function view(s){return {...structuredClone(s),mode:'mock',demo:true,budget:budget(s),comparison:comparison(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),connections:{...structuredClone(s.connections),llm:{...s.connections.llm,hasKey:false},mcp:{...s.connections.mcp,hasBearer:false},strava:{configured:false,connected:false}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
  function save(s){try{storage.setItem(key,JSON.stringify(s));}catch{throw Error('瀏覽器儲存空間不足，未保存變更。可先移除舊活動或重設試用資料。');}state=s;return view(s);}
  return {
   async request(path,b={}){
