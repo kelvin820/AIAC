@@ -17,6 +17,10 @@ test('HTTP coaching loop, accept/reject, stale proposal, and restart persistence
   const badPlan=await call('training-plan',{action:'apply',settings:{weeks:99,weeklyMinutes:240}});assert.equal(badPlan.status,400);assert.match(badPlan.data.error,/計畫週數/);
   const applied=(await call('training-plan',{action:'apply',settings:{name:'HTTP 計畫',startDate:'2099-01-05',weeks:3,weeklyMinutes:240,daysPerWeek:4}})).data;assert.equal(applied.planStatus.name,'HTTP 計畫');
   await call('training-plan',{action:'archive',id:applied.trainingPlans[0].id});
+  const today=(await call('state')).data.wellnessView.today;
+  const badWell=await call('wellness',{action:'save',entry:{date:today,hrv:999}});assert.equal(badWell.status,400);assert.match(badWell.data.error,/HRV/);
+  let well=(await call('wellness',{action:'save',entry:{date:today,sleepHours:7.5,restingHr:52}})).data;assert.equal(well.wellness.length,1);assert.equal(well.wellnessView.readiness.status,'insufficient');
+  well=(await call('wellness',{action:'delete',date:today})).data;assert.deepEqual(well.wellness,[]);
   const badGoal=await call('goal',{action:'save',goal:{type:'event',title:'賽事'}});assert.equal(badGoal.status,400);assert.match(badGoal.data.error,/比賽日期/);
   let withGoal=(await call('goal',{action:'save',goal:{type:'consistency',title:'每週 3 次',sessionsPerWeek:3}})).data;assert.equal(withGoal.goals.length,1);assert.equal(withGoal.goalsView.goals[0].progress.kind,'consistency');
   withGoal=(await call('goal',{action:'delete',id:withGoal.goals[0].id})).data;assert.deepEqual(withGoal.goals,[]);
