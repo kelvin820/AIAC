@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：使用者看過暖色版後認為「太 low」，並以 Stryd 儀表板為參考。改為深色、資料優先的效能儀表板（自創配色，未使用 Stryd 品牌元素）：深綠黑底、窄圖示側欄、杏桃色只標每區最重要的數字、訓練類型以顏色編碼（Zone2 綠、恢復藍、Tempo 黃、Interval 珊瑚、長跑紫、室內藍紫、休息灰，CSS `[data-type]`）。今日頁新增 KPI 列（`#kpis`：本週實際、課表規劃、課表完成度、品質課）與每週預計／實際長條圖（SVG，`weekChart()`）；週節奏卡片移除重複的大數字。頁面大標題縮小為精簡標題列。字體由 Nunito 改為 Archivo（OFL，自帶 `public/assets/fonts/archivo-latin.woff2`）。
+- **狀態**：已推分支，待使用者看效果後合併（PR #2）。
+- **測試**：node --test 34 項通過；build-demo 成功；Playwright 截圖桌面／手機各頁、試用版字體載入且無 console 錯誤。截圖已更新 `docs/aiac-redesign-*.png`。
+- **未完成／注意**：圖表與 KPI 只用現有資料，沒有負荷模型（RSS、RSB 類指標尚未實作，不要捏造）。Leaflet 地圖底圖仍為淺色 OSM。今日表單仍是一般欄位。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：安裝 Anthropic 官方 skills（anthropics/skills，Apache 2.0）：`frontend-design`、`webapp-testing`、`theme-factory`、`canvas-design`、`brand-guidelines`。完整內容在 `.agents/skills/<name>/`（附 `SOURCE.md`），`.claude/skills/<name>/SKILL.md` 為轉介檔。安裝前已讀過全部文字檔與腳本：`webapp-testing/scripts/with_server.py` 只啟動指定伺服器並執行指令；PDF 無內嵌腳本；字體為 OFL TTF（3 個被 `file` 誤判，已確認字型表正常）。`AGENTS.md` skill 表已補上用途與限制。
 - **狀態**：已推分支，待合併（PR #2）。
 - **測試**：未改程式碼。
