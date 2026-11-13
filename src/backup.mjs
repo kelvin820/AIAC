@@ -75,5 +75,7 @@ export function restoreBackup(state, backup) {
       validatePlan(recommendation.proposedPlan, recommendation.planBefore);
     }
   }
-  return {...state, ...Object.fromEntries(fields.map(key => [key, structuredClone(data[key])]))};
+  // Drop lastOpenedOn so the next open moves a restored context date to today.
+  const {lastOpenedOn, ...rest} = state;
+  return {...rest, ...Object.fromEntries(fields.map(key => [key, structuredClone(data[key])]))};
 }

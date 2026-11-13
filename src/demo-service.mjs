@@ -1,6 +1,6 @@
 import {exportBackup,restoreBackup} from './backup.mjs';
 import {initialState} from './initial-state.mjs';
-import {hasPlanDate,selectPlanWeek} from './plan-weeks.mjs';
+import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './plan-weeks.mjs';
 import {budget,mockCoach,validatePlan} from './coach.mjs';
 import {normalizeActivity,importActivities,comparison,activitySummary} from './activity-core.mjs';
 import {decodeFitBytes} from './fit-core.mjs';
@@ -12,7 +12,7 @@ export function createDemoService(storage){
  function save(s){try{storage.setItem(key,JSON.stringify(s));}catch{throw Error('瀏覽器儲存空間不足，未保存變更。可先移除舊活動或重設試用資料。');}state=s;return view(s);}
  return {
   async request(path,b={}){
-   const s=structuredClone(state);if(path==='state')return view(s);
+   const s=structuredClone(state);if(path==='state')return advanceToToday(s,todayIn(s.context.timezone))?save(s):view(s);
    if(path==='backup')return exportBackup(s);
    if(path==='backup-restore')return save(restoreBackup(s,b));
    if(path==='settings'){

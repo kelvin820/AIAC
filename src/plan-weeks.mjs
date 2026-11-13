@@ -24,3 +24,23 @@ export function hasPlanDate(state, date) {
   return state.plan.some(day => day.id === date)
     || Object.values(state.planHistory ?? {}).some(week => week.some(day => day.id === date));
 }
+
+export function todayIn(timezone, now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {timeZone:timezone}).format(now);
+}
+
+// On the first open of a new day, move the daily context to today. If the
+// active plan was showing the old "today", follow it to today's week. A past
+// date the user picks keeps until the next day begins.
+export function advanceToToday(state, today) {
+  weekStart(today);
+  if (state.lastOpenedOn && state.lastOpenedOn >= today) return false;
+  state.lastOpenedOn = today;
+  const previous = state.context.date;
+  if (typeof previous === 'string' && previous < today) {
+    const followed = state.plan.some(day => day.id === previous);
+    state.context.date = today;
+    if (followed) selectPlanWeek(state, today);
+  }
+  return true;
+}

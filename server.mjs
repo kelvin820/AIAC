@@ -13,7 +13,7 @@ import {createGarmin} from './src/garmin.mjs';
 import {fitActivityData} from './src/fit-core.mjs';
 import {syncStrava,syncStravaIfDue} from './src/strava-sync.mjs';
 import {backupLimit,exportBackup,restoreBackup} from './src/backup.mjs';
-import {hasPlanDate,selectPlanWeek} from './src/plan-weeks.mjs';
+import {advanceToToday,hasPlanDate,selectPlanWeek,todayIn} from './src/plan-weeks.mjs';
 
 const garmin=createGarmin(process.env.GARMIN_PERSONAL_API_KEY);
 const dataDir=process.env.DATA_DIR||'data';const store=await openStore(dataDir),vault=await openVault(dataDir);const port=Number(process.env.PORT||3140);let busy=false;
@@ -46,7 +46,7 @@ http.createServer(async(req,res)=>{
   }catch{send(res,400,{error:'授權失敗、被拒絕或已過期。請返回 AIAC 重新連接。'});}finally{busy=false;}return;
  }
  if(req.method==='GET'&&req.url==='/api/backup')return send(res,200,exportBackup(store.get()));
- if(req.method==='GET'&&req.url==='/api/state')return send(res,200,view(store.get()));
+ if(req.method==='GET'&&req.url==='/api/state'){let s=store.get();if(!busy&&advanceToToday(s,todayIn(s.context.timezone))){busy=true;try{s=await store.save(s);}catch(e){return send(res,500,{error:e.message});}finally{busy=false;}}return send(res,200,view(s));}
  if(req.url.startsWith('/api/')&&req.method==='POST'){
   if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return send(res,403,{error:'不允許跨站修改'});
   const isFit=req.url==='/api/import-fit';

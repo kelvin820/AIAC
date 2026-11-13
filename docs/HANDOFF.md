@@ -19,6 +19,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 ---
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：發現 `context.date`（「今天」）只在初次建立時設定，之後不會更新，跨日／跨週後 TODAY 標記、晨間 Coaching 與課表都停在舊日期。新增 `advanceToToday`／`todayIn`（`src/plan-weeks.mjs`）：每天第一次讀取狀態（本機 `GET /api/state`、試用版 `state`）時，把過時的情境日期改為當天；若目前課表正顯示舊日期所在週，跟著切到本週，舊週存入 `planHistory`。以新欄位 `lastOpenedOn` 判斷「新的一天」，當天手動選的過去日期保留到隔天。備份還原會清掉 `lastOpenedOn`，讓還原後第一次開啟也跳到今天。同步更新 README 與 `docs/M2_PROGRESS.md` 的過時描述。
+- **狀態**：已推分支，待合併。
+- **測試**：node --test 34 項通過（新增 `tests/plan-weeks.test.mjs` 4 項、demo 1 項；demo 備份測試的最後比對改為排除 `lastOpenedOn`）。以過時資料目錄實際啟動 server 驗證：開啟後日期與週次已切到今天，舊週保留在歷史。`node scripts/build-demo.mjs` 成功。
+- **未完成／注意**：更正前一則的建議：「跨週與歷史保留」與「備份」其實已在 commit 1103111 實作，下一步不是它們。新週次目前預設全為 Rest／0 分鐘，可考慮「沿用上週課表」；`docs/ROADMAP.md` 階段 1 的剩餘項目（FIT 對應課程、重複活動提示、手機表單）尚待逐項檢查。
+
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **做了什麼**：新增 `AGENTS.md`（Codex 與 Claude Code 共用規則）、`CLAUDE.md`（匯入 AGENTS.md）、本交接紀錄檔。未改動任何程式碼。
 - **狀態**：已推分支，待使用者合併到 main。
 - **測試**：node --test 29 項全數通過。

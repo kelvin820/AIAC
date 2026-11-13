@@ -51,5 +51,27 @@ test('backup transfers training history without connection settings and rejects 
  assert.deepEqual(restored.planHistory[date],original.plan);
  backup.data.activities[0].route=[[999,0],[0,0]];
  await assert.rejects(target.request('backup-restore',backup),/GPS 路線/);
- assert.deepEqual(await target.request('state'),restored);
+ const {lastOpenedOn,...afterFailedRestore}=await target.request('state');
+ assert.equal(typeof lastOpenedOn,'string');
+ assert.deepEqual(afterFailedRestore,restored);
+});
+
+test('opening on a new day moves context to today and follows the plan to that week', async () => {
+ const local=storage();
+ let s=await createDemoService(local).request('state');
+ const today=s.context.date,thisMonday=s.plan[0].id;
+ const lastWeek=new Date(`${today}T12:00:00Z`);lastWeek.setUTCDate(lastWeek.getUTCDate()-7);
+ const past=lastWeek.toISOString().slice(0,10);
+ const demo=createDemoService(local);
+ await demo.request('plan-week',{date:past});
+ s=await demo.request('settings',{profile:s.profile,context:{...s.context,date:past}});
+ // Same day: a past date the user picked is kept.
+ s=await createDemoService(local).request('state');
+ assert.equal(s.context.date,past);
+ // Next day: simulate the last open being yesterday.
+ const stored=JSON.parse(local.getItem('aiac-browser-demo-v1'));stored.lastOpenedOn=past;local.setItem('aiac-browser-demo-v1',JSON.stringify(stored));
+ s=await createDemoService(local).request('state');
+ assert.equal(s.context.date,today);
+ assert.equal(s.plan[0].id,thisMonday);
+ assert.ok(s.planHistory[s.plan[0].id]===undefined&&Object.keys(s.planHistory).length===1);
 });
