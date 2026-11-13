@@ -13,6 +13,9 @@ test('HTTP coaching loop, accept/reject, stale proposal, and restart persistence
  try{
   await start();assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
   const athlete=await call('athlete',{athlete:{maxHeartRate:190,restingHeartRate:50,lthr:'abc'}});assert.equal(athlete.status,400);assert.match(athlete.data.error,/lthr/);
+  const badGoal=await call('goal',{action:'save',goal:{type:'event',title:'賽事'}});assert.equal(badGoal.status,400);assert.match(badGoal.data.error,/比賽日期/);
+  let withGoal=(await call('goal',{action:'save',goal:{type:'consistency',title:'每週 3 次',sessionsPerWeek:3}})).data;assert.equal(withGoal.goals.length,1);assert.equal(withGoal.goalsView.goals[0].progress.kind,'consistency');
+  withGoal=(await call('goal',{action:'delete',id:withGoal.goals[0].id})).data;assert.deepEqual(withGoal.goals,[]);
   const saved=(await call('athlete',{athlete:{maxHeartRate:190,restingHeartRate:50}})).data;assert.equal(saved.athlete.maxHeartRate,190);assert.equal(saved.load.athleteComplete,true);assert.equal(saved.load.today,null);
   assert.equal((await fetch(`http://127.0.0.1:${port}/assets/fonts/archivo-latin.woff2`)).headers.get('content-type'),'font/woff2');
   let s=(await call('state')).data;s.context.date=s.plan[1].id;s.profile.name='HTTP Test';

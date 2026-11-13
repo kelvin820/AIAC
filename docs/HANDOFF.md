@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
+- **做了什麼**：完成借用計畫第 4 期 Goals（以 Codex 的 PR #3 合併後 `main` 為基準）。新增 `src/goals.mjs`（純函式）：`validateGoal`（event／performance／body／consistency）、`metricValue`（CTL、臨界配速、近 4 週每週分鐘、體重自動帶入並附來源）、`metricProgress`（支援越小越好）、`goalProgress`、`goalsSummary`（排序與主要目標）、`goalsForCoach`、`applyGoalAction`、`trainingSessions`（獨立活動＋壺鈴課，裝置紀錄不重複）。狀態新增 `state.goals`；`POST /api/goal` 與試用版 `goal`；`view()` 新增 `goalsView`（不覆蓋原始 `goals`）；備份含目標並逐筆驗證，舊備份缺目標時為空；LLM 輸入加入進行中的目標（README 傳送範圍已更新）。前端：側欄「目標」分頁（粉紅，第 6 個）、目標卡片（倒數、進度條、來源、編輯／完成／封存／刪除）、依類型與指標切換欄位的表單（配速 分:秒、完賽時間 時:分:秒、新增時自動帶入起始值）、首頁頂端主要目標條。截圖 `docs/aiac-goals.png`。
+- **修正 main 上的 CSS bug**：PR #3 合併時 `public/style.css` 少了行事曆手機版 `@media(max-width:760px){` 的結尾 `}`，導致其後所有樣式（含 Codex 新增的頁首、壺鈴等 234 行）只在手機寬度生效，桌面版線上試用版因此缺樣式。已補回；修正後桌面各分頁逐一截圖確認。手機底部導覽改為 9 欄（多了「紀錄」與「目標」）。
+- **狀態**：已推分支，待合併。
+- **測試**：node --test 63 項通過（新增 `tests/goals.test.mjs` 7 項、coach 1 項、HTTP 目標端點）；build-demo 成功；Playwright 實際新增三類目標、驗證錯誤訊息、完成與封存，本機與試用版無 console 錯誤。
+- **未完成／注意**：CSS 檔改動前建議先檢查大括號平衡（`python3` 數 `{` `}` 即可）。下一步第 5 期 Training Plan 與 My Plan（依目標產生週期化計畫）。
+
 ### 2026-11-13 · Codex · codex/kettlebell-integration
 
 - **做了什麼**　從 `0042afb` 整合本機壺鈴組課、計時、12 個 Three.js 動作示範、訓練研究與裝置對應，沿用 GitHub 版的深色設計、Archivo、訓練負荷、表現分析與行事曆。備份同時支援運動員閾值與壺鈴資料。新增固定版本 Three.js，在使用者開啟示範時才載入。

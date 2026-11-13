@@ -569,9 +569,81 @@ function renderAthlete(){
  fill('#athlete-form',{maxHeartRate:athlete.maxHeartRate??'',restingHeartRate:athlete.restingHeartRate??'',lthr:athlete.lthr??'',thresholdPace:athlete.thresholdPaceSecPerKm?formatPace(athlete.thresholdPaceSecPerKm):'',ftp:athlete.ftp??'',weightKg:athlete.weightKg??''});
 }
 
+const goalMetrics={performance:[['ctl','體能 CTL（自動）'],['thresholdPace','臨界配速（自動，分:秒/km）'],['weeklyMinutes','近 4 週平均每週分鐘（自動）'],['custom','自訂指標（手動更新）']],body:[['weightKg','體重 kg（自動，來自訓練閾值）'],['custom','自訂指標（手動更新）']]};
+const goalTypeNames={event:'賽事',performance:'表現',body:'體重',consistency:'規律性'};
+const priorityNames={high:'高',medium:'中',low:'低'};
+const goalMetricNotes={ctl:'目前值由訓練負荷自動計算（42 天體能）。',thresholdPace:'目前值讀取「我」頁的臨界配速；數字越小越快。',weeklyMinutes:'目前值為近 4 個完整週的平均訓練分鐘，含壺鈴課。',weightKg:'目前值讀取「我」頁訓練閾值的體重。',custom:'自訂指標不會自動更新，請在編輯時填目前值。'};
+let goalEditing=null;
+function parseClock(text){if(!text)return null;const parts=text.trim().split(':');if(parts.length<2||parts.length>3||parts.some(p=>!/^\d+$/.test(p)))throw Error('完賽時間請用「時:分:秒」，例如 3:59:00');const [h,m,sec]=parts.length===3?parts.map(Number):[0,...parts.map(Number)];if(m>59||sec>59)throw Error('完賽時間的分與秒需小於 60');return h*3600+m*60+sec;}
+function formatClock(sec){const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=Math.round(sec%60);return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+function goalValue(goal,v){if(v===null||v===undefined)return '—';if(goal.metric==='thresholdPace')return `${formatPace(v)}<small>/km</small>`;return `${Number(v.toFixed?v.toFixed(1):v).toString().replace(/\.0$/,'')}${goal.unit?`<small>${esc(goal.unit)}</small>`:''}`;}
+function goalBar(ratio){const pct=Math.round((ratio??0)*100);return `<div class="goal-bar" role="img" aria-label="進度 ${pct}%"><svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect class="track" width="100" height="8"/><rect class="fill" width="${pct}" height="8"/></svg></div>`;}
+function countdown(p){if(p.daysLeft===null)return '';if(p.daysLeft<0)return `<span class="goal-due past">已過 ${-p.daysLeft} 天</span>`;if(p.daysLeft===0)return '<span class="goal-due soon">就是今天</span>';return `<span class="goal-due${p.daysLeft<=14?' soon':''}">還有 ${p.daysLeft} 天</span>`;}
+function goalBody(g){
+ const p=g.progress;
+ if(p.kind==='event')return `<div class="goal-figure"><strong>${p.daysLeft===null?'—':Math.max(0,p.daysLeft)}<small>天</small></strong><em>${p.daysLeft>=7?`約 ${p.weeksLeft} 週`:'比賽週'}</em></div><p class="goal-line">${g.distanceKm?`${g.distanceKm} km`:'距離未填'}${g.targetTimeSeconds?` · 目標 ${formatClock(g.targetTimeSeconds)}`:''}</p><p class="goal-line">${p.ctl===null?'還沒有活動紀錄，無法顯示目前體能。':`目前體能 ${p.ctl.toFixed(1)} · 狀態 ${(p.tsb>0?'+':'')+p.tsb.toFixed(1)}`}</p>`;
+ if(p.kind==='consistency')return `<div class="goal-figure"><strong>${p.thisWeek}<small>/ ${g.sessionsPerWeek} 次</small></strong><em>本週</em></div>${goalBar(p.ratio)}<p class="goal-line">近 ${p.weeksChecked} 週有 ${p.weeksMet} 週達標</p>`;
+ return `<div class="goal-figure"><strong>${goalValue(g,p.current)}</strong><em>${p.ratio===null?'尚無目前值':`${Math.round(p.ratio*100)}%`}</em></div>${goalBar(p.ratio)}<p class="goal-line">起始 ${goalValue(g,g.startValue)} → 目標 ${goalValue(g,g.targetValue)}</p>`;
+}
+function goalCard(g){
+ const active=g.status==='active';
+ return `<article class="goal-card" data-goal-type="${esc(g.type)}" data-status="${esc(g.status)}"><div class="goal-head"><span class="goal-kind">${esc(goalTypeNames[g.type])}</span><span class="goal-priority" data-priority="${esc(g.priority)}">優先 ${priorityNames[g.priority]}</span>${g.id===state.goalsView.primaryId?'<span class="goal-primary">主要目標</span>':''}</div><h3>${esc(g.title)}</h3><p class="goal-date">${g.targetDate?esc(g.targetDate):'沒有截止日'} ${active?countdown(g.progress):`<span class="goal-due">${g.status==='completed'?'已完成':'已封存'}</span>`}</p>${goalBody(g)}${g.description?`<p class="goal-desc">${esc(g.description)}</p>`:''}<p class="goal-source">資料來源：${esc(g.progress.source)}</p><div class="goal-actions"><button type="button" class="secondary" data-goal-edit="${esc(g.id)}">編輯</button>${active?`<button type="button" class="secondary" data-goal-status="completed" data-goal-id="${esc(g.id)}">標記完成</button><button type="button" class="secondary" data-goal-status="archived" data-goal-id="${esc(g.id)}">封存</button>`:`<button type="button" class="secondary" data-goal-status="active" data-goal-id="${esc(g.id)}">重新啟用</button>`}<button type="button" class="danger" data-goal-delete="${esc(g.id)}">刪除</button></div></article>`;
+}
+function renderGoals(){
+ const view=state.goalsView??{goals:[],primaryId:null},active=view.goals.filter(g=>g.status==='active'),rest=view.goals.filter(g=>g.status!=='active');
+ $('#goal-list').innerHTML=active.length?active.map(goalCard).join(''):`<div class="goal-empty"><p>還沒有進行中的目標。</p><p class="small">先設定一個：例如下一場比賽、想達到的臨界配速，或每週訓練幾次。</p></div>`;
+ $('#goal-archive').hidden=!rest.length;$('#goal-archive-list').innerHTML=rest.map(goalCard).join('');
+ const primary=view.goals.find(g=>g.id===view.primaryId),strip=$('#primary-goal');
+ if(!primary){strip.innerHTML=`<button type="button" class="primary-goal-empty" data-tab="goals">設定一個目標，讓教練知道你在準備什麼 →</button>`;return;}
+ const p=primary.progress,figure=p.kind==='event'?`${Math.max(0,p.daysLeft)} 天`:p.kind==='consistency'?`本週 ${p.thisWeek}/${primary.sessionsPerWeek} 次`:p.ratio===null?'尚無目前值':`${Math.round(p.ratio*100)}%`;
+ strip.innerHTML=`<button type="button" class="primary-goal-card" data-tab="goals" data-goal-type="${esc(primary.type)}"><span class="goal-kind">主要目標 · ${esc(goalTypeNames[primary.type])}</span><strong>${esc(primary.title)}</strong><span class="primary-goal-figure">${figure}</span>${primary.targetDate?`<span class="primary-goal-date">${esc(primary.targetDate)}</span>`:''}${p.kind!=='event'?goalBar(p.ratio):''}</button>`;
+}
+function goalFormSync(){
+ const f=$('#goal-form'),type=f.elements.type.value,metricSel=f.elements.metric;
+ if(goalMetrics[type]){const keep=metricSel.value;metricSel.innerHTML=goalMetrics[type].map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('');metricSel.value=goalMetrics[type].some(([v])=>v===keep)?keep:goalMetrics[type][0][0];}
+ const metric=goalMetrics[type]?metricSel.value:null;
+ f.querySelectorAll('[data-show]').forEach(el=>{const tokens=el.dataset.show.split(' ');el.hidden=!(tokens.includes(type)||(tokens.includes('custom')&&metric==='custom'));});
+ f.querySelectorAll('.goal-type').forEach(el=>el.classList.toggle('active',el.dataset.goalType===type));
+ const pace=metric==='thresholdPace';for(const name of ['startValue','targetValue'])f.elements[name].placeholder=pace?'例如 5:00':'';
+ $('#goal-metric-note').textContent=metric?goalMetricNotes[metric]:type==='consistency'?'每筆活動與每堂壺鈴課各算一次；同一堂壺鈴課的裝置紀錄不重複計算。':'賽事目標會顯示倒數，以及當下的體能與狀態。';
+}
+function goalAutoValue(metric){const a=state.athlete||{};if(metric==='ctl')return state.load?.today?Math.round(state.load.today.ctl*10)/10:null;if(metric==='thresholdPace')return a.thresholdPaceSecPerKm||null;if(metric==='weightKg')return a.weightKg||null;return null;}
+function openGoalEditor(goal=null){
+ goalEditing=goal?.id??null;const f=$('#goal-form');f.reset();$('#goal-form-title').textContent=goal?'編輯目標':'新增目標';
+ f.querySelectorAll('input[name=type]').forEach(r=>{r.checked=r.value===(goal?.type??'event');r.disabled=Boolean(goal);});
+ goalFormSync();
+ if(goal){const pace=goal.metric==='thresholdPace',val=v=>v===null||v===undefined?'':pace?formatPace(v):v;fill('#goal-form',{title:goal.title,priority:goal.priority,targetDate:goal.targetDate??'',description:goal.description??'',distanceKm:goal.distanceKm??'',targetTime:goal.targetTimeSeconds?formatClock(goal.targetTimeSeconds):'',sessionsPerWeek:goal.sessionsPerWeek??'',unit:goal.unit??'',startValue:val(goal.startValue),targetValue:val(goal.targetValue),currentValue:val(goal.currentValue)});if(goal.metric){f.elements.metric.value=goal.metric;goalFormSync();}}
+ if(!goal){const m=goalMetrics[f.elements.type.value]?f.elements.metric.value:null,auto=m?goalAutoValue(m):null;if(auto!==null)f.elements.startValue.value=m==='thresholdPace'?formatPace(auto):auto;}
+ $('#goal-editor').hidden=false;f.elements.title.focus();
+}
+function readGoalForm(){
+ const f=$('#goal-form'),v=formValue('#goal-form'),type=goalEditing?state.goals.find(g=>g.id===goalEditing).type:v.type,existing=goalEditing&&state.goals.find(g=>g.id===goalEditing);
+ const goal={...(existing??{}),type,title:v.title,priority:v.priority,targetDate:v.targetDate||null,description:v.description};
+ delete goal.progress;
+ if(type==='event'){goal.distanceKm=v.distanceKm||null;goal.targetTimeSeconds=parseClock(v.targetTime);}
+ else if(type==='consistency')goal.sessionsPerWeek=v.sessionsPerWeek;
+ else{goal.metric=f.elements.metric.value;const read=x=>goal.metric==='thresholdPace'?parsePace(x):(x===''?null:x);goal.unit=v.unit;goal.startValue=read(v.startValue);goal.targetValue=read(v.targetValue);goal.currentValue=goal.metric==='custom'?read(v.currentValue):null;}
+ return goal;
+}
+$('#goal-new').addEventListener('click',()=>openGoalEditor());
+$('#goal-cancel').addEventListener('click',()=>{$('#goal-editor').hidden=true;goalEditing=null;});
+$('#goal-form').addEventListener('change',e=>{
+ if(e.target.name!=='type'&&e.target.name!=='metric')return;
+ goalFormSync();
+ if(goalEditing)return;
+ // New goals start from the athlete's current value when AIAC can read it.
+ const f=$('#goal-form'),metric=goalMetrics[f.elements.type.value]?f.elements.metric.value:null,auto=metric?goalAutoValue(metric):null;
+ f.elements.startValue.value=auto===null?'':metric==='thresholdPace'?formatPace(auto):auto;
+});
+$('#goal-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const goal=readGoalForm();state=await api('goal',{action:'save',goal});goalEditing=null;$('#goal-editor').hidden=true;render();notice('目標已保存。');});});
+document.querySelector('#goals').addEventListener('click',e=>{
+ const edit=e.target.closest('[data-goal-edit]');if(edit){openGoalEditor(state.goals.find(g=>g.id===edit.dataset.goalEdit));$('#goal-editor').scrollIntoView?.({block:'start'});return;}
+ const st=e.target.closest('[data-goal-status]');if(st){const g={...state.goals.find(x=>x.id===st.dataset.goalId),status:st.dataset.goalStatus};action(async()=>{state=await api('goal',{action:'save',goal:g});render();notice(g.status==='completed'?'恭喜！目標已標記完成。':g.status==='archived'?'目標已封存。':'目標已重新啟用。');});return;}
+ const del=e.target.closest('[data-goal-delete]');if(del){const g=state.goals.find(x=>x.id===del.dataset.goalDelete);if(!window.confirm(`確定刪除「${g.title}」？刪除後無法復原。`))return;action(async()=>{state=await api('goal',{action:'delete',id:g.id});render();notice('目標已刪除。');});}
+});
 function render(){
  $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
- const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();
+ const b=state.budget;renderKpis(b);renderLoad();renderPerformance();renderCalendar();renderGoals();
  renderAthlete();
  $('#budget').innerHTML=weekChart()+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
  const r=state.recommendations.at(-1);
