@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第三則）
+- **做了什麼**：新增 `src/daily-budget.mjs`（純模組）：今日強度預算 `todayBudget`（輸入計畫課、準備度、TSB、昨天與近 28 天平均負荷）與 `budgetFromState`（從 state 取值）。只降不升，取最嚴重規則，輸出決策、調整後的課、所有理由與規則版本 `R18-v1`。規則見 `docs/ALGORITHMS.md` R18（使用者已核准第一版）。
+- **刻意不做**：沒接 API 與介面（PR #10 未合併）。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/daily-budget.test.mjs` 7 項）。
+- **下一步**：PR #10 合併後，今日頁顯示「今日處方」：預算結果＋「今天不想跑」替代選單（`cross-training.mjs`）；個人資料加騎車閾值心率。之後接 intervals.icu 歷史 GPS 路線與坡度等強（R1，需先核准方法）。
+
 ### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第二則）
 - **做了什麼**：新增 `src/cross-training.mjs`（純模組，瀏覽器試用版可共用）：把計畫中的跑步課換成跑步機、室內／戶外腳踏車或滑步機，輸出時間、心率（或自覺強度、跑步機配速）、可替代程度（full／partial）、少練到什麼、提示（跑步機 1% 坡度等），以及 `howCalculated` 文字與規則版本 `R16-v1`，供 AI 教練說明算法、之後校正。規則見 `docs/ALGORITHMS.md` R15／R16（使用者已核准第一版）。
 - **刻意不做**：還沒接 API 與介面。PR #10 未合併，避免改 `server.mjs`、`app.js`。`athlete.bikeLthr`（騎車閾值心率）模組已支援，但個人資料欄位與驗證尚未加，等 PR #10 合併後一起接。

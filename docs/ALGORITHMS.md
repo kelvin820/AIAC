@@ -121,7 +121,7 @@ R1（坡度修正）優先度提高：它是路線等強換算的核心。
 | R15 | 跑步機等效 | 戶外課表 → 跑步機速度與坡度 | Jones & Doust（1996，*J Sports Sci* 14:321–327）：1% 坡度最接近戶外平路的能量成本；低速時 0–1% 差異不顯著，高速時介於 1–2%。原因是室內沒有空氣阻力。**使用者要求：跑步機處方一律提示「記得把坡度設 1%」** |
 | R16 | 替代運動（腳踏車、滑步機等） | 「今天不想跑，可以騎車或滑步機嗎？」可不可以、要多久、多強、怎麼計入負荷 | 見下方初步調研 |
 | R17 | 個人校正 | 跑後對照預測與實際，校正個人係數 | 待研究：例如以實際心率／intervals.icu 負荷對預測做加權更新 |
-| R18 | 今日強度預算規則 | 恢復狀態、體能疲勞、計畫 → 今天的課表類型與目標負荷 | 待研究：結合 D1／R5 準備度、A4 狀態分級與計畫當天課表 |
+| R18 | 今日強度預算規則 | 恢復狀態、體能疲勞、計畫 → 今天的課表類型與目標負荷 | **第一版已核准（2026-11-15）**，見下方 R18 |
 
 #### R16 替代運動初步調研（2026-11-15，待深入）
 
@@ -141,3 +141,16 @@ R1（坡度修正）優先度提高：它是路線等強換算的核心。
   3. 負荷優先用 intervals.icu 的負荷（它依項目設定計算），沒有時再用 AIAC 依項目閾值計算。
 - 待查證的原始文獻：上述統合分析的作者與期刊、5 週 50% 取代研究、滑步機各研究的作者；騎車與跑步閾值心率差異的研究。
 - 參考來源：[Cross-training between cycling and running in untrained females（PubMed 9062047）](https://pubmed.ncbi.nlm.nih.gov/9062047/)、[Marathon Handbook 整理的騎車替代研究](https://marathonhandbook.com/can-cycling-replace-some-of-your-running-heres-what-the-science-says/)、[Flynn 等人 1998 摘要](https://coachsci.sdsu.edu/csa/vol73/flynn.htm)、[滑步機與跑步機比較（JSSM）](https://www.jssm.org/jssm-05-662.xml-Fulltext)、[UNM 滑步機研究 PDF](https://www.unm.edu/~lkravitz/Article%20folder/JEPElliptical.PDF)、[Jones & Doust 1996（PubMed 8887211）](https://www.pubmed.ncbi.nlm.nih.gov/8887211)、[Brownlee 的心率負荷比較報導](https://road.cc/tech-news/which-is-the-hardest-endurance-sport-double-olympic-triathlon-champ-alistair-brownlee-has-crunched-the-stats-to-find-out)。
+
+#### R18 今日強度預算第一版 · 核准（2026-11-15，AIAC 自訂門檻，未逐項對照文獻）
+- 程式：`src/daily-budget.mjs` `todayBudget`、`budgetFromState`（規則版本 `R18-v1`）。
+- 起點：計畫當天的課；沒有計畫時預設輕鬆有氧 40 分鐘。計畫休息就休息。
+- 只降不升，多條成立時取最嚴重的一條，所有成立的規則都列為理由：
+  1. 狀態值（TSB）< −40：建議休息，或 20 分鐘恢復（最嚴重）。
+  2. 準備度「偏低」（D1，≥2 個警訊）：改恢復課，時間 × 0.7。
+  3. 準備度「留意」（1 個警訊）：品質課（節奏、間歇）降為輕鬆有氧，時間不變。
+  4. TSB < −25：品質課降為輕鬆有氧。
+  5. 昨天負荷 > 近 28 天日平均負荷 × 2：今天不排品質課（降為輕鬆有氧）。
+- 狀況良好不自動加量，只顯示「可照計畫」（產品紅線：不強行補課）。
+- TSB 用「進入今天」的值：昨天結束時的 CTL − ATL（今天的訓練還沒發生）。
+- 每個警訊（HRV、安靜心率、睡眠、疲勞、痠痛）都列進理由，供 AI 教練與介面說明。
