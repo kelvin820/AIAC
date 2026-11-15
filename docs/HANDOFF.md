@@ -18,6 +18,14 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y
+- **使用者重新定義產品**：核心是「事前算好強度的今日運動處方」：依昨天訓練、恢復、體能，結合天氣、空氣品質、路線坡度與地點限制，推薦路線與每公里配速；改室內、跑步機或替代運動可以是使用者主觀選擇；LLM 只做教練式解釋。
+- **做了什麼**：只改文件。新增 `docs/PRODUCT_CORE.md`（決策流程、元件、資料來源、開發順序、待回答問題）；`docs/ALGORITHMS.md` 新增 R11–R18，含 R16 替代運動（騎車、滑步機）初步調研與 R15 跑步機 1% 坡度（Jones & Doust 1996）。
+- **使用者決定**：風只給「無風／有風／強風」概念，不逐段計算；空氣品質只給三級指引（建議戶外／都可以／不建議戶外），不進等強換算；替代運動是特色，要調研。
+- **狀態**：已推分支，未開 PR。
+- **測試**：未改程式，未跑測試。
+- **未完成／注意**：開發等 Codex 的 PR #10 合併後開始，順序見 `PRODUCT_CORE.md`。R11–R18 都是待研究，核准前不實作。
+
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者決定**：intervals.icu 有算的就用 intervals.icu 的，沒有才用 AIAC 算法（`docs/ALGORITHMS.md` A2 已核准）。
 - **做了什麼**：`activityLoad` 第 0 步採用 `intervalsLoad`（來源 `intervals`、高可信度）；`performanceSeries` 新增 `anchors` 參數，`state.intervalsFitness`（來自 intervals.icu 健康紀錄的每日 `ctl`／`atl`，`mergeFitness` 寫入，最多保存 800 天）有值的日子直接採用，其餘由 AIAC 公式接續，每天標示來源；`loadSummary`、`performanceData`、目標的 CTL 都改用錨點。備份含 `intervalsFitness` 並驗證，舊備份為空。負荷卡註明體能與疲勞來自 intervals.icu；活動負荷來源名稱新增「intervals.icu」。
