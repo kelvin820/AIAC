@@ -18,6 +18,11 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/coach-wording
+- **使用者要求**：畫面不要顯示模型名稱，請求過程顯示「AI 教練規劃中／回覆中」而不是 LLM。
+- **做了什麼**：首頁建議卡副標改為「AI 教練／示範教練 · 日期」；等待提示改為「AI 教練規劃中」「AI 教練回覆中」「AI 教練分析中」；右上角模式標示改為「AI 教練／示範教練」。教練系統提示詞加上：不提及模型與供應商、不把英文欄位名混入回答。模型名稱仍記錄在資料（用量統計）但不顯示。設定頁的技術說明保留 LLM 字樣。
+- **測試**：node --test 通過；build-demo 成功。
+
 ### 2026-11-15 · Claude Code · claude/llm-nemotron
 - **問題**：使用者在雲端版按教練顯示 timeout。原因一：`api/aiac.js` 沒設 `maxDuration`，函式時限先到；原因二：原選的模型在免費端點很慢，且推理模型會把 token 花在思考過程、`content` 為空。
 - **做了什麼**：`vercel.json` 加 `functions["api/aiac.js"].maxDuration = 120`；新增可選設定「關掉思考」：雲端 `AIAC_LLM_DISABLE_THINKING=1` → `connections.llm.disableThinking` → `LLM_DISABLE_THINKING` → 請求帶 `chat_template_kwargs:{enable_thinking:false}`（只在開啟時送，避免其他供應商拒收未知參數）。Vercel 模型改為使用者指定的 `nvidia/nemotron-3.5-super-vl-120b-a12b`。

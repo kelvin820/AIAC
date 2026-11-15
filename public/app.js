@@ -814,13 +814,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('[data-route-library]
 document.addEventListener('click',e=>{const b=e.target.closest('[data-substitute]');if(!b)return;substituteMode=substituteMode===b.dataset.substitute?null:b.dataset.substitute;renderPrescription();});
 
 function render(){
- $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
+ $('#mode').textContent=state.mode==='live'?'AI 教練':'示範教練';fill('#profile-form',state.profile);renderCheckIn();
  const week=state.currentWeek,b=week.budget;
  renderKpis(week);renderPrescription();renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();renderIntervalsThresholds();renderCalibration();
  renderAthlete();
  $('#budget').innerHTML=weekChart(week)+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
  const r=state.recommendations.at(-1);
- $('#recommendation').innerHTML=r?`<h2>教練建議</h2><p class="small">${r.mode==='mock'?'Mock 示範':esc(r.model)} · ${esc(r.at.slice(0,10))}</p>
+ $('#recommendation').innerHTML=r?`<h2>教練建議</h2><p class="small">${r.mode==='mock'?'示範教練':'AI 教練'} · ${esc(r.at.slice(0,10))}</p>
   ${planDiff(r)}<p>${esc(r.text)}</p>${recommendationDetails(r)}`
   :'<h2>教練建議</h2><p class="muted">需要改課時，從上方選擇「請教練幫我調整」。</p>';
  $('#messages').innerHTML=state.messages.length?state.messages.map(m=>`<div class="message ${m.role==='user'?'user':''}"><span class="who">${m.role==='user'?'YOU':'AIAC COACH'}</span>${esc(m.text)}</div>`).join(''):'<div class="message"><span class="who">AIAC COACH</span>你好，我們先從今天開始。你有多少時間？想練什麼，又有哪些顧慮？</div>';$('#messages').scrollTop=$('#messages').scrollHeight;
@@ -856,7 +856,7 @@ $('#context-form').addEventListener('submit',event=>{
    if(!state.plan.some(day=>day.id===payload.context.date)){
     state=await api('plan-week',{date:payload.context.date});
    }
-   notice(state.mode==='mock'?'正在產生 Mock 調整建議…':'正在向設定的 LLM 取得調整建議…');
+   notice(state.mode==='mock'?'示範教練正在規劃…':'AI 教練規劃中，請稍候…');
    state=await api('coach',{kind:'morning',message:'請依我提供的器材、可用時間、訓練意願與本週實績，提出今天可行的調整。若缺少調整方向，請先問我。'});
    notice('調整建議已保存。');
   }finally{
@@ -865,7 +865,7 @@ $('#context-form').addEventListener('submit',event=>{
   focusRecommendation();
  });
 });
-$('#chat-form').addEventListener('submit',e=>{e.preventDefault();const message=$('#chat-input').value;action(async()=>{state=await api('settings',settings());notice('教練正在回應…');state=await api('coach',{kind:'chat',message});$('#chat-input').value='';render();focusRecommendation();notice('對話已保存。');});});
+$('#chat-form').addEventListener('submit',e=>{e.preventDefault();const message=$('#chat-input').value;action(async()=>{state=await api('settings',settings());notice('AI 教練回覆中，請稍候…');state=await api('coach',{kind:'chat',message});$('#chat-input').value='';render();focusRecommendation();notice('對話已保存。');});});
 $('#plan-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const plan=[...document.querySelectorAll('.plan-row')].map((row,i)=>({...state.plan[i],type:row.querySelector('select').value,minutes:Number(row.querySelector('[name=minutes]').value)}));state=await api('plan',{plan});render();notice('課表已儲存。');});});
 $('#memory-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('memory',formValue('#memory-form'));$('#memory-form').reset();render();notice('已保存你確認的長期記憶。');});});
 $('#reset').addEventListener('click',()=>{const confirm=window.prompt('刪除本地個人設定、對話、記憶及日誌，並還原示範課表。輸入 DELETE 確認：');if(confirm==='DELETE')action(async()=>{state=await api('reset',{confirm});render();notice('個人資料已刪除，已還原初始示範狀態。');});});
@@ -1145,7 +1145,7 @@ $('#garmin-sync').addEventListener('click',()=>action(async()=>{
 }));
 $('#strava-disconnect').addEventListener('click',()=>action(async()=>{state=await api('strava-disconnect',{});render();notice('Strava 已撤銷連接；已匯入的活動仍保留。');}));
 $('#import-json').addEventListener('click',()=>action(async()=>{state=await api('activities',{source:$('#json-source').value,activities:JSON.parse($('#activity-json').value)});render();notice(`已新增 ${state.imported.added} 筆活動。`);}));
-document.addEventListener('click',e=>{const save=e.target.closest('[data-link-save]'),del=e.target.closest('[data-delete-activity]'),analyze=e.target.closest('[data-analyze]');if(save)action(async()=>{const id=save.dataset.linkSave;state=await api('activity-link',{id,planId:document.querySelector(`[data-link-date="${id}"]`).value,trainingType:document.querySelector(`[data-link-type="${id}"]`).value});render();notice('課表對應已保存，時間與目的完成度已重新計算。');});if(del&&window.confirm('確定移除此活動紀錄？原始 FIT 檔會保留到重設全部資料。'))action(async()=>{state=await api('activity-delete',{id:del.dataset.deleteActivity});render();notice('活動紀錄已移除。');});if(analyze)action(async()=>{notice('正在依目前的模型設定分析…');state=await api('coach',{kind:'workout',message:'請分析這份實際訓練結果，對照預計課表並區分事實與假設。',activityId:analyze.dataset.analyze});render();focusRecommendation();notice('活動分析已保存。');});if(e.target.id==='import-mcp-output')action(async()=>{let data=mcpOutput.structuredContent;if(!data){const t=mcpOutput.content?.find(c=>c.type==='text');data=JSON.parse(t?.text||'null');}const activities=Array.isArray(data)?data:data?.activities;state=await api('activities',{source:new URL(state.connections.mcp.url).hostname==='mcp.strava.com'?'strava-mcp':'mcp',activities});render();notice(`已新增 ${state.imported.added} 筆、重複 ${state.imported.duplicates} 筆。`);});});
+document.addEventListener('click',e=>{const save=e.target.closest('[data-link-save]'),del=e.target.closest('[data-delete-activity]'),analyze=e.target.closest('[data-analyze]');if(save)action(async()=>{const id=save.dataset.linkSave;state=await api('activity-link',{id,planId:document.querySelector(`[data-link-date="${id}"]`).value,trainingType:document.querySelector(`[data-link-type="${id}"]`).value});render();notice('課表對應已保存，時間與目的完成度已重新計算。');});if(del&&window.confirm('確定移除此活動紀錄？原始 FIT 檔會保留到重設全部資料。'))action(async()=>{state=await api('activity-delete',{id:del.dataset.deleteActivity});render();notice('活動紀錄已移除。');});if(analyze)action(async()=>{notice('AI 教練分析中，請稍候…');state=await api('coach',{kind:'workout',message:'請分析這份實際訓練結果，對照預計課表並區分事實與假設。',activityId:analyze.dataset.analyze});render();focusRecommendation();notice('活動分析已保存。');});if(e.target.id==='import-mcp-output')action(async()=>{let data=mcpOutput.structuredContent;if(!data){const t=mcpOutput.content?.find(c=>c.type==='text');data=JSON.parse(t?.text||'null');}const activities=Array.isArray(data)?data:data?.activities;state=await api('activities',{source:new URL(state.connections.mcp.url).hostname==='mcp.strava.com'?'strava-mcp':'mcp',activities});render();notice(`已新增 ${state.imported.added} 筆、重複 ${state.imported.duplicates} 筆。`);});});
 $('#activity-search').addEventListener('input',()=>{if(state)filterActivities();});
 $('#activity-source-filter').addEventListener('change',()=>{if(state)filterActivities();});
 document.addEventListener('click',event=>{
