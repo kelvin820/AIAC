@@ -18,6 +18,11 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/vercel-deploy-notes
+- **做了什麼**：部署 Vercel 單人試用（細節見 `docs/CLOUD_PREVIEW.md`「部署狀態」）。建立專案、私有 Blob、`INTERVALS_ATHLETE_ID`、`CRON_SECRET`；使用者連 Neon、設登入密碼與 intervals.icu 金鑰。修正框架自動判斷錯誤（改為 Other）。PR #11 已 squash 合併到 `main`。
+- **測試**：只改文件。
+- **未完成／注意**：`claude/aiac-next`、`claude/eloquent-meitner-mz160y` 遠端刪除失敗（推送刪除時斷線），請使用者在 GitHub 手動刪除。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第九則）
 - **使用者決定**：路線推薦規則第一版核准；開 PR 以 squash 合併到 `main`，合併後刪除 `claude/aiac-next` 與 `claude/eloquent-meitner-mz160y`。
 - **狀態**：本則為合併前最後一則。今日處方（R1、R2、R11、R12、R14–R18、路線推薦）都已上線到 `main`（含 Codex 交接分支的雲端準備）。
