@@ -27,7 +27,11 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
       error.code = 'INTERVALS_REJECTED';
       throw error;
     }
-    if (!response.ok) throw Error(`intervals.icu 回應 ${response.status}，稍後會再試。`);
+    if (!response.ok) {
+      const error=Error(`intervals.icu 回應 ${response.status}。`);
+      error.status=response.status;
+      throw error;
+    }
     return response.json();
   }
   // Check configuration before building the path, so a missing id gives the .env hint.
@@ -36,6 +40,11 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
     configured,
     activities:(oldest, newest) => get(`/athlete/${athlete()}/activities`, {oldest, newest}),
     wellness:(oldest, newest) => get(`/athlete/${athlete()}/wellness`, {oldest, newest}),
+    streams:id => get(`/activity/${encodeURIComponent(id)}/streams.json`, {types:'time,latlng,heartrate,velocity_smooth,altitude,cadence,watts,distance,fixed_altitude'}),
+    intervals:id => get(`/activity/${encodeURIComponent(id)}/intervals`),
+    athleteSettings:() => get(`/athlete/${athlete()}`),
+    paceCurve:() => get(`/athlete/${athlete()}/pace-curves.json`, {type:'Run', curves:'1y'}),
+    activitySource:async id => (await get(`/activity/${encodeURIComponent(id)}`,{fields:'source'})).source,
   };
 }
 
@@ -133,11 +142,49 @@ export function syncRange(status, today) {
 }
 
 // One sync pass. Mutates state; the caller saves it.
+// The athlete's own thresholds in intervals.icu (per sport), offered in the profile as values to apply.
+// threshold_pace is metres per second for runs; it is converted to seconds per km.
+export function mapAthleteSettings(d) {
+  const sports = Array.isArray(d?.sportSettings) ? d.sportSettings : [];
+  const find = type => sports.find(s => Array.isArray(s?.types) && s.types.includes(type)) ?? {};
+  const inRange = (v, min, max) => positive(v) !== null && v >= min && v <= max ? Math.round(v) : null;
+  const run = find('Run'), ride = find('Ride');
+  const pace = positive(run.threshold_pace) ? 1000 / run.threshold_pace : null;
+  const out = {
+    lthr:inRange(run.lthr, 80, 220), maxHeartRate:inRange(run.max_hr, 100, 230),
+    thresholdPaceSecPerKm:pace !== null && pace >= 120 && pace <= 900 ? Math.round(pace) : null,
+    bikeLthr:inRange(ride.lthr, 80, 220), ftp:inRange(ride.ftp, 50, 700),
+    restingHeartRate:inRange(d?.icu_resting_hr, 25, 120),
+    weightKg:positive(d?.icu_weight) && d.icu_weight >= 25 && d.icu_weight <= 250 ? Math.round(d.icu_weight * 10) / 10 : null,
+  };
+  return Object.values(out).some(v => v !== null) ? out : null;
+}
+
+// intervals.icu's critical speed (CS) model fitted to the last year's best running efforts, as critical pace.
+export function mapCriticalPace(d) {
+  const curve = Array.isArray(d?.list) ? d.list[0] : null;
+  const model = (Array.isArray(curve?.paceModels) ? curve.paceModels : []).find(m => m?.type === 'CS');
+  const cs = positive(model?.criticalSpeed);
+  if (!cs) return null;
+  const pace = Math.round(1000 / cs);
+  if (pace < 120 || pace > 900) return null;
+  return {secPerKm:pace, dPrimeMeters:positive(model.dPrime) ? Math.round(model.dPrime) : null, days:positive(curve.days) ? Math.round(curve.days) : null};
+}
+
 export async function syncIntervals(state, client, {today, now = new Date().toISOString(), backfillDays = null}) {
   const status = state.connections.intervals ??= {};
   const range = backfillDays ? {oldest:addDays(today, -backfillDays), newest:today} : syncRange(status, today);
   try {
     const [rows, wellnessRows] = await Promise.all([client.activities(range.oldest, range.newest), client.wellness(range.oldest, range.newest)]);
+    // Thresholds are optional: a failure here never fails the sync.
+    if (client.athleteSettings) {
+      try {
+        const settings = mapAthleteSettings(await client.athleteSettings()) ?? {};
+        let criticalPace = null;
+        if (client.paceCurve) { try { criticalPace = mapCriticalPace(await client.paceCurve()); } catch {} }
+        if (Object.values(settings).some(v => v !== null) || criticalPace) state.intervalsAthlete = {...settings, criticalPace, updatedAt:now};
+      } catch {}
+    }
     const items = [];
     let invalid = 0;
     for (const row of Array.isArray(rows) ? rows : []) {

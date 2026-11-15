@@ -11,7 +11,9 @@ export function normalizeActivity(input,source='manual',timezone='Asia/Taipei'){
 export function importActivities(state,items,activityIds){
  let added=0,duplicates=0;
  for(const a of items){
-  const existing=state.activities.find(x=>x.source===a.source&&x.sourceId===a.sourceId||x.fingerprint&&x.fingerprint===a.fingerprint||x.source!=='manual'&&a.source!=='manual'&&x.sport.toLowerCase()===a.sport.toLowerCase()&&Math.abs(Date.parse(x.startedAt)-Date.parse(a.startedAt))<=30000&&Math.abs(x.durationSeconds-a.durationSeconds)<=60&&x.distanceMeters!==null&&a.distanceMeters!==null&&Math.abs(x.distanceMeters-a.distanceMeters)<=100);
+  const exact=state.activities.find(x=>x.sources.some(source=>source.source===a.source&&source.sourceId===a.sourceId)
+    || x.fingerprint&&x.fingerprint===a.fingerprint);
+  const existing=exact??state.activities.find(x=>x.source!=='manual'&&a.source!=='manual'&&x.sport.toLowerCase()===a.sport.toLowerCase()&&Math.abs(Date.parse(x.startedAt)-Date.parse(a.startedAt))<=30000&&Math.abs(x.durationSeconds-a.durationSeconds)<=60&&x.distanceMeters!==null&&a.distanceMeters!==null&&Math.abs(x.distanceMeters-a.distanceMeters)<=100);
   if(existing){
    duplicates++;
    if(a.route&&(!existing.route||(a.source==='fit'&&!existing.sources.some(source=>source.source==='fit'))))existing.route=a.route;
@@ -29,7 +31,7 @@ export function importActivities(state,items,activityIds){
   activityIds?.push((existing??a).id);
  }return {added,duplicates};
 }
-export function comparison(state){return state.plan.map(p=>{
+export function comparison(state,plan=state.plan){return plan.map(p=>{
  const activities=state.activities.filter(a=>a.planId===p.id&&!a.kettlebellSessionId);
  const actualMinutes=activities.reduce((n,a)=>n+a.durationSeconds/60,0);
  const distanceKnown=activities.filter(a=>a.distanceMeters!==null);

@@ -24,6 +24,12 @@ function restWeek(monday) {
   });
 }
 
+export function planForWeek(state, date) {
+  const monday = weekStart(date);
+  if (state.plan[0].id === monday) return state.plan;
+  return state.planHistory?.[monday] ?? restWeek(monday);
+}
+
 export function ensurePlanWeek(state,date) {
   const monday=weekStart(date);
   if(monday!==state.plan[0].id) (state.planHistory??={})[monday]??=restWeek(monday);

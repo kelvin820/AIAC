@@ -16,11 +16,11 @@ const positive = v => typeof v === 'number' && Number.isFinite(v) && v > 0;
 
 // Athlete thresholds, all optional. Pace is seconds per kilometre.
 export function defaultAthlete() {
-  return {maxHeartRate:null, restingHeartRate:null, lthr:null, thresholdPaceSecPerKm:null, ftp:null, weightKg:null};
+  return {maxHeartRate:null, restingHeartRate:null, lthr:null, thresholdPaceSecPerKm:null, ftp:null, weightKg:null, bikeLthr:null};
 }
 
 export function validateAthlete(input) {
-  const ranges = {maxHeartRate:[100,230], restingHeartRate:[25,120], lthr:[80,220], thresholdPaceSecPerKm:[120,900], ftp:[50,700], weightKg:[25,250]};
+  const ranges = {maxHeartRate:[100,230], restingHeartRate:[25,120], lthr:[80,220], thresholdPaceSecPerKm:[120,900], ftp:[50,700], weightKg:[25,250], bikeLthr:[80,220]};
   const out = defaultAthlete();
   for (const [key, [min, max]] of Object.entries(ranges)) {
     const raw = input?.[key];

@@ -85,9 +85,13 @@ test('sync imports, deduplicates against existing activities and fills power and
   // A second pass imports nothing new.
   const again = await syncIntervals(s, client, {today:TODAY});
   assert.deepEqual([again.added, again.duplicates], [0, 2]);
-  assert.match(calls.at(-1).url, /oldest=2026-11-11/);
+  const changed = fakeFetch({'/activities':[200,[run({distance:null,moving_time:3100})]], '/wellness':[200,[]]});
+  const changedClient = createIntervals({apiKey:'k',athleteId:'i1',fetchImpl:changed.fn});
+  const corrected = await syncIntervals(s,changedClient,{today:TODAY});
+  assert.deepEqual([corrected.added,corrected.duplicates],[0,1]);
+  assert.match(calls.filter(c => c.url.includes('/activities')).at(-1).url, /oldest=2026-11-11/);
   await syncIntervals(s, client, {today:TODAY, backfillDays:365});
-  assert.match(calls.at(-1).url, /oldest=2025-11-13/);
+  assert.match(calls.filter(c => c.url.includes('/activities')).at(-1).url, /oldest=2025-11-13/);
 });
 
 test('failed sync keeps the error on the status and flags a rejected key', async () => {
@@ -138,4 +142,31 @@ test('intervals.icu fitness survives backup and bad values are refused', async (
   assert.throws(() => restoreBackup(initialState(), backup), /intervals\.icu 體能/);
   delete backup.data.intervalsFitness;
   assert.deepEqual(restoreBackup(initialState(), backup).intervalsFitness, {});
+});
+
+test('athlete thresholds from intervals.icu are mapped and kept; a failure does not stop the sync', async () => {
+  const {mapAthleteSettings} = await import('../src/intervals.mjs');
+  const settings = {icu_resting_hr:52, icu_weight:79.84, sportSettings:[{types:['Ride', 'VirtualRide'], lthr:165, ftp:250}, {types:['Run', 'TrailRun'], lthr:171, max_hr:188, threshold_pace:3.7037}]};
+  assert.deepEqual(mapAthleteSettings(settings), {lthr:171, maxHeartRate:188, thresholdPaceSecPerKm:270, bikeLthr:165, ftp:250, restingHeartRate:52, weightKg:79.8});
+  assert.equal(mapAthleteSettings({sportSettings:[{types:['Run'], lthr:999}]}), null);
+  const s = initialState();
+  const ok = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[200, settings]}).fn});
+  await syncIntervals(s, ok, {today:TODAY, now:'t'});
+  assert.equal(s.intervalsAthlete.lthr, 171);
+  assert.equal(s.intervalsAthlete.updatedAt, 't');
+  const broken = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[500, {}]}).fn});
+  const r = await syncIntervals(initialState(), broken, {today:TODAY});
+  assert.equal(r.added, 0);
+});
+
+test('critical pace comes from the intervals.icu CS model of the last year', async () => {
+  const {mapCriticalPace} = await import('../src/intervals.mjs');
+  const curve = {list:[{days:366, paceModels:[{type:'CS', criticalSpeed:3.2, dPrime:150.4}]}]};
+  assert.deepEqual(mapCriticalPace(curve), {secPerKm:313, dPrimeMeters:150, days:366});
+  assert.equal(mapCriticalPace({list:[{paceModels:[]}]}), null);
+  assert.equal(mapCriticalPace({list:[{paceModels:[{type:'CS', criticalSpeed:0.5}]}]}), null);
+  const s = initialState();
+  const client = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[200, {}], '/pace-curves.json':[200, curve]}).fn});
+  await syncIntervals(s, client, {today:TODAY, now:'t'});
+  assert.equal(s.intervalsAthlete.criticalPace.secPerKm, 313);
 });
