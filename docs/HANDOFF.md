@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第九則）
+- **使用者決定**：路線推薦規則第一版核准；開 PR 以 squash 合併到 `main`，合併後刪除 `claude/aiac-next` 與 `claude/eloquent-meitner-mz160y`。
+- **狀態**：本則為合併前最後一則。今日處方（R1、R2、R11、R12、R14–R18、路線推薦）都已上線到 `main`（含 Codex 交接分支的雲端準備）。
+- **測試**：node --test 147 項通過；build-demo 成功。
+- **下一步建議**：R17 第二版（坡度與怕熱分開，需 ≥20 筆）；部署 Vercel 單人試用（照 `docs/CLOUD_PREVIEW.md`）；OSM 自動產生新路線先研究。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第八則）
 - **使用者決定**：R17 第一版核准；雲端預設環境放行 `archive-api.open-meteo.com`。
 - **做了什麼**：`src/calibration.mjs`（挑選穩定輕鬆跑、比值、指數加權個人係數、待補天氣清單、起跑整點）；路線庫條目升到 v2，多存熱身後心率變異（舊條目會在下次「更新路線庫」重讀）；`openMeteo.archive()`（429 時提示額度用完）；`POST /api/calibration-weather` 每次最多 15 筆；`view().calibration`；推薦路線套用個人係數並標示；個人資料新增「跑後校正」卡。
