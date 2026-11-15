@@ -573,14 +573,16 @@ function renderAthlete(){
 }
 const intervalsFields=[['lthr','跑步乳酸閾值心率','bpm'],['maxHeartRate','最大心率','bpm'],['thresholdPaceSecPerKm','臨界配速','/km'],['bikeLthr','騎車閾值心率','bpm'],['ftp','FTP','W'],['restingHeartRate','安靜心率','bpm'],['weightKg','體重','kg']];
 const formKey=k=>k==='thresholdPaceSecPerKm'?'thresholdPace':k;
+const intervalsValues=t=>({...t,thresholdPaceSecPerKm:t.thresholdPaceSecPerKm??t.criticalPace?.secPerKm??null});
 function renderIntervalsThresholds(){
- const t=state.intervalsAthlete,box=$('#intervals-thresholds');
- if(!t){box.innerHTML='';return;}
+ const raw=state.intervalsAthlete,box=$('#intervals-thresholds');
+ if(!raw){box.innerHTML='';return;}
+ const t=intervalsValues(raw);
  const rows=intervalsFields.filter(([k])=>t[k]!==null&&t[k]!==undefined).map(([k,label,unit])=>{const v=k==='thresholdPaceSecPerKm'?formatPace(t[k]):t[k];const same=state.athlete[k]===t[k];return `<li${same?' data-same':''}><span>${esc(label)}</span><b>${esc(v)} ${unit}</b>${same?'<em>已相同</em>':''}</li>`;}).join('');
- const missing=t.thresholdPaceSecPerKm?'':'<p class="small">intervals.icu 沒有設定跑步臨界配速，請自行填寫（路線推薦需要它）。</p>';
+ const missing=raw.thresholdPaceSecPerKm?'':raw.criticalPace?`<p class="small">臨界配速取自 intervals.icu 依你近 ${raw.criticalPace.days??365} 天最佳成績擬合的臨界速度（CS）模型${raw.criticalPace.dPrimeMeters?`，D′ ${raw.criticalPace.dPrimeMeters} m`:''}。</p>`:'<p class="small">intervals.icu 沒有跑步臨界配速，請自行填寫（路線推薦需要它）。</p>';
  box.innerHTML=`<div class="intervals-thresholds"><h3>intervals.icu 的設定</h3><ul>${rows}</ul>${missing}<button type="button" class="secondary" data-apply-intervals-thresholds>帶入表單</button><p class="small">帶入後檢查一下，再按「儲存訓練閾值」。</p></div>`;
 }
-document.addEventListener('click',e=>{if(!e.target.closest('[data-apply-intervals-thresholds]'))return;const t=state.intervalsAthlete,form=$('#athlete-form');for(const [k] of intervalsFields){if(t[k]===null||t[k]===undefined)continue;const input=form.elements[formKey(k)];if(input)input.value=k==='thresholdPaceSecPerKm'?formatPace(t[k]):t[k];}form.elements.lthr?.focus();notice('已帶入 intervals.icu 的設定，確認後按「儲存訓練閾值」。');});
+document.addEventListener('click',e=>{if(!e.target.closest('[data-apply-intervals-thresholds]'))return;const t=intervalsValues(state.intervalsAthlete),form=$('#athlete-form');for(const [k] of intervalsFields){if(t[k]===null||t[k]===undefined)continue;const input=form.elements[formKey(k)];if(input)input.value=k==='thresholdPaceSecPerKm'?formatPace(t[k]):t[k];}form.elements.lthr?.focus();notice('已帶入 intervals.icu 的設定，確認後按「儲存訓練閾值」。');});
 
 const goalMetrics={performance:[['ctl','體能 CTL（自動）'],['thresholdPace','臨界配速（自動，分:秒/km）'],['weeklyMinutes','近 4 週平均每週分鐘（自動）'],['custom','自訂指標（手動更新）']],body:[['weightKg','體重 kg（自動，來自訓練閾值）'],['custom','自訂指標（手動更新）']]};
 const goalTypeNames={event:'賽事',performance:'表現',body:'體重',consistency:'規律性'};

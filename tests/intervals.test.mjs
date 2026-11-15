@@ -158,3 +158,15 @@ test('athlete thresholds from intervals.icu are mapped and kept; a failure does 
   const r = await syncIntervals(initialState(), broken, {today:TODAY});
   assert.equal(r.added, 0);
 });
+
+test('critical pace comes from the intervals.icu CS model of the last year', async () => {
+  const {mapCriticalPace} = await import('../src/intervals.mjs');
+  const curve = {list:[{days:366, paceModels:[{type:'CS', criticalSpeed:3.2, dPrime:150.4}]}]};
+  assert.deepEqual(mapCriticalPace(curve), {secPerKm:313, dPrimeMeters:150, days:366});
+  assert.equal(mapCriticalPace({list:[{paceModels:[]}]}), null);
+  assert.equal(mapCriticalPace({list:[{paceModels:[{type:'CS', criticalSpeed:0.5}]}]}), null);
+  const s = initialState();
+  const client = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[200, {}], '/pace-curves.json':[200, curve]}).fn});
+  await syncIntervals(s, client, {today:TODAY, now:'t'});
+  assert.equal(s.intervalsAthlete.criticalPace.secPerKm, 313);
+});

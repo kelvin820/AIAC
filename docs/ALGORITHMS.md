@@ -98,7 +98,7 @@ AIAC 用到的所有運動生理計算都登記在這裡：公式、出處、程
 | 編號 | 主題 | 用途 | 候選方向 |
 |---|---|---|---|
 | R1 | 坡度修正配速（GAP／NGP） | 越野與爬坡的配速、負荷 | Minetti 能量成本曲線、Strava GAP、TrainingPeaks NGP |
-| R2 | 臨界速度／臨界配速估算 | 自動估臨界配速，不必手填 | 兩點或多點 CS 模型（Monod）、3／12 分鐘測試、由最佳成績回推 |
+| R2 | 臨界速度／臨界配速估算 | 自動估臨界配速，不必手填 | **2026-11-15 依 A2 採用 intervals.icu 的臨界速度（CS）模型**：intervals.icu 以近一年最佳配速曲線擬合 CS 與 D′（Monod 臨界功率模型的跑步版），`mapCriticalPace` 換成秒/公里，在個人資料當建議值帶入（使用者按儲存才生效）。intervals.icu 跑步設定有臨界配速時優先用設定值。AIAC 自己估算的方法暫不做 |
 | R3 | 比賽成績預測 | 賽事目標可行性 | Riegel 公式、Daniels VDOT、Cameron 模型 |
 | R4 | VO2max 估算 | 體能趨勢 | 由配速與心率估算（Firstbeat 類方法，公開程度不一）、由 VDOT 換算 |
 | R5 | HRV 準備度 | 取代或改良 D1 | ln rMSSD 7 日平均對照 60 日正常範圍（Plews、Kiviniemi） |

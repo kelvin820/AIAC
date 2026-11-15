@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第七則）
+- **使用者決定**：本分支合併到 `main` 時用 squash，合併後刪除 `claude/aiac-next` 與 `claude/eloquent-meitner-mz160y`（舊提交中有少量真實訓練數字，不進 main）。
+- **做了什麼**：R2 依 A2 採用 intervals.icu 的臨界速度（CS）模型：用戶端 `paceCurve()`（`/pace-curves.json?type=Run&curves=1y`）、`mapCriticalPace`，同步時存到 `state.intervalsAthlete.criticalPace`；個人資料建議值在 intervals.icu 沒設定臨界配速時改用它，並說明來源。
+- **測試**：node --test 140 項通過（新增 1 項）；以真實帳號驗證帶入、儲存後路線推薦可用，無 console 錯誤。
+- **下一步**：R17 跑後校正，方法待使用者核准。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第六則）
 - **做了什麼**：intervals.icu 用戶端新增 `athleteSettings()`；`mapAthleteSettings` 取跑步 LTHR／最大心率／臨界配速（m/s 換成秒/公里）、騎車 LTHR／FTP、安靜心率、體重；`syncIntervals` 每次同步順帶讀取存到 `state.intervalsAthlete`（失敗不影響同步）。個人資料「訓練閾值」下方列出這些值與「帶入表單」按鈕，使用者按儲存才生效（不自動覆蓋）。
 - **真實資料驗證**：使用者的 intervals.icu 有心率閾值與 FTP，**沒有跑步臨界配速**，路線推薦仍需使用者自填。（真實數值不寫入倉庫。）

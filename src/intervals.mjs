@@ -43,6 +43,7 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
     streams:id => get(`/activity/${encodeURIComponent(id)}/streams.json`, {types:'time,latlng,heartrate,velocity_smooth,altitude,cadence,watts,distance,fixed_altitude'}),
     intervals:id => get(`/activity/${encodeURIComponent(id)}/intervals`),
     athleteSettings:() => get(`/athlete/${athlete()}`),
+    paceCurve:() => get(`/athlete/${athlete()}/pace-curves.json`, {type:'Run', curves:'1y'}),
     activitySource:async id => (await get(`/activity/${encodeURIComponent(id)}`,{fields:'source'})).source,
   };
 }
@@ -159,6 +160,17 @@ export function mapAthleteSettings(d) {
   return Object.values(out).some(v => v !== null) ? out : null;
 }
 
+// intervals.icu's critical speed (CS) model fitted to the last year's best running efforts, as critical pace.
+export function mapCriticalPace(d) {
+  const curve = Array.isArray(d?.list) ? d.list[0] : null;
+  const model = (Array.isArray(curve?.paceModels) ? curve.paceModels : []).find(m => m?.type === 'CS');
+  const cs = positive(model?.criticalSpeed);
+  if (!cs) return null;
+  const pace = Math.round(1000 / cs);
+  if (pace < 120 || pace > 900) return null;
+  return {secPerKm:pace, dPrimeMeters:positive(model.dPrime) ? Math.round(model.dPrime) : null, days:positive(curve.days) ? Math.round(curve.days) : null};
+}
+
 export async function syncIntervals(state, client, {today, now = new Date().toISOString(), backfillDays = null}) {
   const status = state.connections.intervals ??= {};
   const range = backfillDays ? {oldest:addDays(today, -backfillDays), newest:today} : syncRange(status, today);
@@ -166,7 +178,12 @@ export async function syncIntervals(state, client, {today, now = new Date().toIS
     const [rows, wellnessRows] = await Promise.all([client.activities(range.oldest, range.newest), client.wellness(range.oldest, range.newest)]);
     // Thresholds are optional: a failure here never fails the sync.
     if (client.athleteSettings) {
-      try { const settings = mapAthleteSettings(await client.athleteSettings()); if (settings) state.intervalsAthlete = {...settings, updatedAt:now}; } catch {}
+      try {
+        const settings = mapAthleteSettings(await client.athleteSettings()) ?? {};
+        let criticalPace = null;
+        if (client.paceCurve) { try { criticalPace = mapCriticalPace(await client.paceCurve()); } catch {} }
+        if (Object.values(settings).some(v => v !== null) || criticalPace) state.intervalsAthlete = {...settings, criticalPace, updatedAt:now};
+      } catch {}
     }
     const items = [];
     let invalid = 0;
