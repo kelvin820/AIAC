@@ -25,6 +25,7 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 - **狀態**：已推分支，未開 PR。
 - **測試**：未改程式，未跑測試。
 - **未完成／注意**：開發等 Codex 的 PR #10 合併後開始，順序見 `PRODUCT_CORE.md`。R11–R18 都是待研究，核准前不實作。
+- **補充（同日）**：使用者回答：只用歷史路線；處方輸出配速＋心率上限、不做功率（演算法用物理訊號逼近功率）；預設出發 05:30、地點台北士林（可改）；替代運動第一版為腳踏車（室內／戶外）與滑步機；沒數據可先用經驗法則（跑 60 分 ≈ 騎 90 分）但要寫清楚並由 AI 教練說明；跑步機處方提示設 1% 坡度。已寫入 `PRODUCT_CORE.md` 與 `ALGORITHMS.md` R10／R15／R16。
 
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者決定**：intervals.icu 有算的就用 intervals.icu 的，沒有才用 AIAC 算法（`docs/ALGORITHMS.md` A2 已核准）。
