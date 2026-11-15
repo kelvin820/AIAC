@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第二則）
+- **做了什麼**：新增 `src/cross-training.mjs`（純模組，瀏覽器試用版可共用）：把計畫中的跑步課換成跑步機、室內／戶外腳踏車或滑步機，輸出時間、心率（或自覺強度、跑步機配速）、可替代程度（full／partial）、少練到什麼、提示（跑步機 1% 坡度等），以及 `howCalculated` 文字與規則版本 `R16-v1`，供 AI 教練說明算法、之後校正。規則見 `docs/ALGORITHMS.md` R15／R16（使用者已核准第一版）。
+- **刻意不做**：還沒接 API 與介面。PR #10 未合併，避免改 `server.mjs`、`app.js`。`athlete.bikeLthr`（騎車閾值心率）模組已支援，但個人資料欄位與驗證尚未加，等 PR #10 合併後一起接。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/cross-training.test.mjs` 5 項）。
+- **下一步**：PR #10 合併後：個人資料加騎車閾值心率、`/api` 與今日頁「今天不想跑」選擇；再做今日強度預算（R18，規則需先核准）。
+
 ### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者重新定義產品**：核心是「事前算好強度的今日運動處方」：依昨天訓練、恢復、體能，結合天氣、空氣品質、路線坡度與地點限制，推薦路線與每公里配速；改室內、跑步機或替代運動可以是使用者主觀選擇；LLM 只做教練式解釋。
 - **做了什麼**：只改文件。新增 `docs/PRODUCT_CORE.md`（決策流程、元件、資料來源、開發順序、待回答問題）；`docs/ALGORITHMS.md` 新增 R11–R18，含 R16 替代運動（騎車、滑步機）初步調研與 R15 跑步機 1% 坡度（Jones & Doust 1996）。
