@@ -45,7 +45,7 @@ export function createCloudHandler({pool,fitStore,env}) {
             const model=env.AIAC_LLM_MODEL?.trim();
             const baseUrl=env.AIAC_LLM_BASE_URL?.trim();
             if(envKey&&model&&baseUrl?.startsWith('https://')){
-              Object.assign(state.connections.llm,{mode:'byok',model,baseUrl});
+              Object.assign(state.connections.llm,{mode:'byok',model,baseUrl,disableThinking:env.AIAC_LLM_DISABLE_THINKING==='1'});
             }else{
               state.connections.llm.mode='mock';
             }

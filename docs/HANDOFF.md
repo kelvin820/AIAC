@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/llm-nemotron
+- **問題**：使用者在雲端版按教練顯示 timeout。原因一：`api/aiac.js` 沒設 `maxDuration`，函式時限先到；原因二：原選的模型在免費端點很慢，且推理模型會把 token 花在思考過程、`content` 為空。
+- **做了什麼**：`vercel.json` 加 `functions["api/aiac.js"].maxDuration = 120`；新增可選設定「關掉思考」：雲端 `AIAC_LLM_DISABLE_THINKING=1` → `connections.llm.disableThinking` → `LLM_DISABLE_THINKING` → 請求帶 `chat_template_kwargs:{enable_thinking:false}`（只在開啟時送，避免其他供應商拒收未知參數）。Vercel 模型改為使用者指定的 `nvidia/nemotron-3.5-super-vl-120b-a12b`。
+- **實測**：以 AIAC 教練程式加測試情境直接呼叫此模型（關思考），約 10 秒回傳有效 JSON，內容引用今日處方的時間與心率。
+- **測試**：node --test 149 項通過（新增 1 項）。
+
 ### 2026-11-15 · Claude Code · claude/llm-nvidia
 - **做了什麼**：接使用者的 NVIDIA LLM。`coach.mjs` 新增 `parseModelJson`（去掉 `<think>`、程式碼框與前後文字再解析 JSON，仍需通過原本的欄位檢查）；LLM 等待上限 45 → 90 秒。Vercel 設定 `AIAC_LLM_BASE_URL`、`AIAC_LLM_MODEL`，金鑰由使用者設定。也併入 `claude/vercel-deploy-notes` 的部署紀錄。
 - **實測**：從 Claude 雲端環境呼叫 NVIDIA，大模型在 30 秒時被代理斷線（502 upstream request failed，串流也一樣），無法在此驗證；已下架模型會立即回 410，代表連線與金鑰正常。改在 Vercel 上由使用者實測。

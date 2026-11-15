@@ -50,3 +50,22 @@ test('model JSON is read through think blocks, code fences and surrounding text'
   assert.throws(() => parseModelJson('沒有 JSON'));
   assert.throws(() => parseModelJson(null));
 });
+
+test('thinking can be switched off for reasoning models (NVIDIA NIM chat_template_kwargs)', async () => {
+  const {coach} = await import('../src/coach.mjs');
+  const {initialState} = await import('../src/initial-state.mjs');
+  const {llmEnvironment} = await import('../src/providers.mjs');
+  const base = {mode:'byok', baseUrl:'https://llm.example.com/v1', model:'m', maxOutputTokens:800};
+  assert.equal(llmEnvironment(base, {llmKey:'k'}).LLM_DISABLE_THINKING, undefined);
+  const env = llmEnvironment({...base, disableThinking:true}, {llmKey:'k'});
+  assert.equal(env.LLM_DISABLE_THINKING, '1');
+  const bodies = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); return {ok:true, json:async () => ({choices:[{message:{content:JSON.stringify({text:'好', why:'因為', planB:'休息', uncertainties:[]})}}]})}; };
+  try {
+    await coach(initialState(), '你好', 'chat', env);
+    await coach(initialState(), '你好', 'chat', llmEnvironment(base, {llmKey:'k'}));
+  } finally { globalThis.fetch = real; }
+  assert.deepEqual(bodies[0].chat_template_kwargs, {enable_thinking:false});
+  assert.equal('chat_template_kwargs' in bodies[1], false);
+});
