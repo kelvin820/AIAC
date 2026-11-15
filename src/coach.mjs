@@ -79,6 +79,19 @@ export function mockCoach(state,message,kind){
  const progress=`本週已對應課表 ${linked.toFixed(1)} 分鐘${unlinked?`，另有 ${unlinked} 筆活動待對應`:''}。`;
  return {text,why:progress+' 示範模式依目前紀錄與情境提供建議。',uncertainties:[...(!c.sleep?['缺少睡眠資料']:[]),'未連接恢復、天氣及路線來源'],planB:'若時間或狀態不允許，可縮短為輕鬆活動或延後，重新確認整週安排。',proposedPlan};
 }
+// Some OpenAI-compatible providers (for example NVIDIA NIM reasoning models) wrap the JSON in a
+// <think> block or a Markdown code fence. Take the JSON object out; anything else is still rejected.
+export function parseModelJson(content){
+ if(typeof content!=='string')throw Error('empty');
+ let text=content.replace(/<think>[\s\S]*?<\/think>/gi,'').trim();
+ const fenced=text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+ if(fenced)text=fenced[1].trim();
+ try{return JSON.parse(text);}catch{}
+ const start=text.indexOf('{'),end=text.lastIndexOf('}');
+ if(start<0||end<=start)throw Error('no json');
+ return JSON.parse(text.slice(start,end+1));
+}
+
 export async function coach(state,message,kind,env=process.env){
  if(env.LLM_MODE!=='live')return {...mockCoach(state,message,kind),model:'mock-v1',mode:'mock'};
  if(!env.LLM_API_KEY||!env.LLM_BASE_URL||!env.LLM_MODEL)throw Error('請先設定 LLM_API_KEY、LLM_BASE_URL 與 LLM_MODEL');
@@ -103,9 +116,9 @@ export async function coach(state,message,kind,env=process.env){
   ? ' 若有分圈，引用圈號及實測數值。圈數多於所提供的明細時，明細只包含首尾樣本。分圈不等於間歇工作段，缺值不可當作零。'
   : '';
  const progressGuidance=' weeklyActuals 是所選週的裝置與手動活動實績。已對應分鐘用於原課表完成度，未對應分鐘是當日實績，請先確認其目的及對應。保留已有活動的日期和原課表。kettlebellDays 是已有壺鈴課的日期，這些天的原課表只供查閱，不可改動，也不要把壺鈴算作跑步。linkedToKettlebell 表示同一堂壺鈴課的裝置資料；其時間不另計入 budget，也不能由裝置數值推算輪數。缺少活動紀錄時，先確認是否完成。';
- const response=await fetch(env.LLM_BASE_URL.replace(/\/$/,'')+'/chat/completions',{method:'POST',redirect:'error',signal:AbortSignal.timeout(45000),headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.LLM_API_KEY}`},body:JSON.stringify({model:env.LLM_MODEL,max_tokens:Number(env.LLM_MAX_OUTPUT_TOKENS)||800,response_format:{type:'json_object'},messages:[{role:'system',content:system + progressGuidance + workoutGuidance},{role:'user',content:input}]})});
+ const response=await fetch(env.LLM_BASE_URL.replace(/\/$/,'')+'/chat/completions',{method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.LLM_API_KEY}`},body:JSON.stringify({model:env.LLM_MODEL,max_tokens:Number(env.LLM_MAX_OUTPUT_TOKENS)||800,response_format:{type:'json_object'},messages:[{role:'system',content:system + progressGuidance + workoutGuidance},{role:'user',content:input}]})});
  if(!response.ok)throw Error(`LLM 服務回應 ${response.status}，請檢查供應商設定`);
- const data=await response.json();let result;try{result=JSON.parse(data.choices[0].message.content);}catch{throw Error('LLM 未回傳有效結構化建議');}
+ const data=await response.json();let result;try{result=parseModelJson(data.choices[0].message.content);}catch{throw Error('LLM 未回傳有效結構化建議');}
  if(typeof result.text!=='string'||typeof result.why!=='string'||typeof result.planB!=='string'||!Array.isArray(result.uncertainties)||!result.uncertainties.every(x=>typeof x==='string'))throw Error('LLM 建議缺少必要欄位');
  if(result.proposedPlan)result.proposedPlan=validatePlan(result.proposedPlan,state.plan);
  return {...result,model:env.LLM_MODEL,mode:'live',usage:data.usage||null};

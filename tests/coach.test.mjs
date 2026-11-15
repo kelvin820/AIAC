@@ -38,3 +38,15 @@ test('profile, memory and conversation survive store reopening',async()=>{const 
 test('live configuration failure does not silently fall back to mock',async()=>{await assert.rejects(coach(initialState(),'test','chat',{LLM_MODE:'live'}),/LLM_API_KEY/);});
 test('live provider contract sends structured context and checks proposal',async()=>{const original=globalThis.fetch;let request;globalThis.fetch=async(url,opts)=>{request=JSON.parse(opts.body);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'建議',why:'原因',planB:'替代',uncertainties:[],proposedPlan:null})}}]})};};try{const r=await coach(initialState(),'今天只有30分鐘','chat',{LLM_MODE:'live',LLM_API_KEY:'test',LLM_BASE_URL:'https://example.invalid/v1',LLM_MODEL:'test'});assert.equal(r.mode,'live');assert.ok(JSON.parse(request.messages[1].content).budget);assert.equal(request.model,'test');}finally{globalThis.fetch=original;}});
 test('live coach request includes active goals but not completed ones',async()=>{const original=globalThis.fetch;let request;globalThis.fetch=async(url,opts)=>{request=JSON.parse(opts.body);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({text:'建議',why:'原因',planB:'替代',uncertainties:[],proposedPlan:null})}}]})};};try{const s=initialState();s.goals=[{id:'g1',type:'event',title:'台北馬拉松',description:'',priority:'high',status:'active',targetDate:'2099-12-20',distanceKm:42.2,targetTimeSeconds:null,createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z'},{id:'g2',type:'consistency',title:'已完成',description:'',priority:'high',status:'completed',targetDate:null,sessionsPerWeek:3,createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z'}];await coach(s,'今天怎麼練','chat',{LLM_MODE:'live',LLM_API_KEY:'test',LLM_BASE_URL:'https://example.invalid/v1',LLM_MODEL:'test'});const input=JSON.parse(request.messages[1].content);assert.deepEqual(input.goals.map(g=>g.title),['台北馬拉松']);assert.equal(input.goals[0].distanceKm,42.2);}finally{globalThis.fetch=original;}});
+
+test('model JSON is read through think blocks, code fences and surrounding text', async () => {
+  const {parseModelJson} = await import('../src/coach.mjs');
+  const want = {text:'好', why:'因為', planB:'休息', uncertainties:[]};
+  const json = JSON.stringify(want);
+  assert.deepEqual(parseModelJson(json), want);
+  assert.deepEqual(parseModelJson(`<think>先想一下 {不是答案}</think>\n${json}`), want);
+  assert.deepEqual(parseModelJson('```json\n' + json + '\n```'), want);
+  assert.deepEqual(parseModelJson('以下是建議：' + json + ' 祝順利'), want);
+  assert.throws(() => parseModelJson('沒有 JSON'));
+  assert.throws(() => parseModelJson(null));
+});
