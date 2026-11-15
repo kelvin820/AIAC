@@ -89,9 +89,9 @@ test('sync imports, deduplicates against existing activities and fills power and
   const changedClient = createIntervals({apiKey:'k',athleteId:'i1',fetchImpl:changed.fn});
   const corrected = await syncIntervals(s,changedClient,{today:TODAY});
   assert.deepEqual([corrected.added,corrected.duplicates],[0,1]);
-  assert.match(calls.at(-1).url, /oldest=2026-11-11/);
+  assert.match(calls.filter(c => c.url.includes('/activities')).at(-1).url, /oldest=2026-11-11/);
   await syncIntervals(s, client, {today:TODAY, backfillDays:365});
-  assert.match(calls.at(-1).url, /oldest=2025-11-13/);
+  assert.match(calls.filter(c => c.url.includes('/activities')).at(-1).url, /oldest=2025-11-13/);
 });
 
 test('failed sync keeps the error on the status and flags a rejected key', async () => {
@@ -142,4 +142,19 @@ test('intervals.icu fitness survives backup and bad values are refused', async (
   assert.throws(() => restoreBackup(initialState(), backup), /intervals\.icu 體能/);
   delete backup.data.intervalsFitness;
   assert.deepEqual(restoreBackup(initialState(), backup).intervalsFitness, {});
+});
+
+test('athlete thresholds from intervals.icu are mapped and kept; a failure does not stop the sync', async () => {
+  const {mapAthleteSettings} = await import('../src/intervals.mjs');
+  const settings = {icu_resting_hr:52, icu_weight:79.84, sportSettings:[{types:['Ride', 'VirtualRide'], lthr:165, ftp:250}, {types:['Run', 'TrailRun'], lthr:171, max_hr:188, threshold_pace:3.7037}]};
+  assert.deepEqual(mapAthleteSettings(settings), {lthr:171, maxHeartRate:188, thresholdPaceSecPerKm:270, bikeLthr:165, ftp:250, restingHeartRate:52, weightKg:79.8});
+  assert.equal(mapAthleteSettings({sportSettings:[{types:['Run'], lthr:999}]}), null);
+  const s = initialState();
+  const ok = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[200, settings]}).fn});
+  await syncIntervals(s, ok, {today:TODAY, now:'t'});
+  assert.equal(s.intervalsAthlete.lthr, 171);
+  assert.equal(s.intervalsAthlete.updatedAt, 't');
+  const broken = createIntervals({apiKey:'k', athleteId:'i1', fetchImpl:fakeFetch({'/activities':[200, []], '/wellness':[200, []], '/athlete/i1':[500, {}]}).fn});
+  const r = await syncIntervals(initialState(), broken, {today:TODAY});
+  assert.equal(r.added, 0);
 });

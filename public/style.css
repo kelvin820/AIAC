@@ -837,3 +837,11 @@ nav button[data-tab=activity-log]{--ic:#57D6C7}
 .env-grid span[data-level="heat-moderate"],.env-grid span[data-level="heat-high"]{color:var(--accent)}
 .env-grid span[data-level="heat-extreme"]{color:var(--danger)}
 .environment details summary{cursor:pointer;font-size:13px;color:var(--muted)}
+
+.intervals-thresholds{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.intervals-thresholds h3{font-size:14px;margin:0 0 8px}
+.intervals-thresholds ul{list-style:none;padding:0;margin:0 0 10px;display:grid;gap:4px;font-size:13px}
+.intervals-thresholds li{display:flex;gap:10px;align-items:baseline}
+.intervals-thresholds li span{color:var(--muted);min-width:9em}
+.intervals-thresholds li em{font-style:normal;color:var(--muted);font-size:12px}
+.intervals-thresholds li[data-same] b{color:var(--muted)}

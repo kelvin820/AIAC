@@ -18,6 +18,11 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第六則）
+- **做了什麼**：intervals.icu 用戶端新增 `athleteSettings()`；`mapAthleteSettings` 取跑步 LTHR／最大心率／臨界配速（m/s 換成秒/公里）、騎車 LTHR／FTP、安靜心率、體重；`syncIntervals` 每次同步順帶讀取存到 `state.intervalsAthlete`（失敗不影響同步）。個人資料「訓練閾值」下方列出這些值與「帶入表單」按鈕，使用者按儲存才生效（不自動覆蓋）。
+- **真實資料驗證**：使用者的 intervals.icu 有心率閾值與 FTP，**沒有跑步臨界配速**，路線推薦仍需使用者自填。（真實數值不寫入倉庫。）
+- **測試**：node --test 139 項通過（新增 1 項）；Playwright 以真實同步驗證帶入與儲存，無 console 錯誤。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第五則）
 - **使用者決定**：R12 方案 A 核准。
 - **做了什麼**：`weather.mjs` 新增 `wbgt`（澳洲氣象局簡化式）、`heatAdjustment`（WBGT > 15°C 每度慢 0.35%，ACSM 風險分級，附計算說明）；環境指引加入熱風險提示（高／極高）；`recommendRoutes` 可帶熱修正，回傳 `basePace`、`flatPace`（已放慢）與 `heat`；首頁環境格新增 WBGT 與放慢比例、「熱與濕度怎麼算的」；路線卡標示含熱修正。教練 LLM 輸入加入 WBGT、風險與放慢比例。
@@ -32,7 +37,7 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ### 2026-11-15 · Claude Code · claude/aiac-next（第三則）
 - **做了什麼**：路線推薦。`src/route-library.mjs`：`routeEntry`（intervals.icu 串流 → 每 100 m 高度剖面＋四捨五入到小數 4 位的起終點）、`pendingActivities`、`addEntries`（`state.routeLibrary` 最多 200 條、`state.routeLibrarySkipped`）、`groupRoutes`、`flatPace`、`recommendRoutes`（規則見 `docs/ALGORITHMS.md`「路線推薦規則」，待核准）。`POST /api/route-library` 每次最多讀 15 筆（先查來源，Strava 來源略過）。intervals.icu `streams()` 加抓 `distance`、`fixed_altitude`。`prescription.routes` 與首頁「推薦路線」卡（每公里配速、爬升、平均海拔、跑過次數、計算說明；建立／更新路線庫按鈕）；教練 LLM 輸入加入精簡路線。路線庫不在備份內（可隨時重建），已刪除活動的路線不會推薦。
-- **真實資料驗證**：以使用者 intervals.icu（雲端網路密鑰；本機 Node 需 `NODE_USE_ENV_PROXY=1` 走代理）同步一年、建立 34 條路線庫（全部有修正高度，平均海拔多為 5–18 m），臨界配速暫填 5:30 做測試，輕鬆有氧 40 分推薦 3 條約 6 km 路線，每公里 6:20–7:12。測試資料已刪除。
+- **真實資料驗證**：以使用者 intervals.icu（雲端網路密鑰；本機 Node 需 `NODE_USE_ENV_PROXY=1` 走代理）同步並建立路線庫，路線都有修正高度；臨界配速暫填測試值，推薦結果合理。測試資料已刪除，真實數值不寫入倉庫。
 - **測試**：node --test 131 項通過（新增 `tests/route-library.test.mjs` 5 項、`application.test.mjs` 路線庫端點 1 項）；build-demo 成功。
 - **注意**：使用者個人資料尚未填臨界配速，沒有它路線會顯示「請先填臨界配速」。
 
@@ -57,8 +62,8 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 - **未完成／注意**　Neon 在 Vercel 的 CKM 工作區為 Available，尚未連接任何專案。使用者確認尚未部署 AIAC，故遠端 Neon、Vercel、私有 Blob 與 Cron 待未來驗收。Git 不含原始 FIT、真實訓練資料或金鑰。
 
 ### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第五則）
-- **intervals.icu 實測成功**：金鑰存在雲端環境的網路密鑰（Basic，使用者名稱 API_KEY），運動員 ID 用 `0`（代表金鑰本人）可用。近一年 61 筆活動、37 筆跑步，跑步都有 `distance`、`altitude`、`fixed_altitude`（intervals.icu 依地形修正的高度）、`latlng` 等串流。有 8 筆來源為 Strava 的活動 `type` 為空（intervals.icu API 不提供 Strava 匯入的內容），之後同步要略過。
-- **做了什麼**：新增 `src/route-profile.mjs`：串流 → 高度剖面，優先 `fixed_altitude`，不保留座標。用一筆真實 5.5 km 路線跑 `routeEffort`：手錶高度平滑後爬升 9 m、修正高度 46 m（intervals.icu 摘要 37 m），平均海拔約 10–13 m，平路 6:00 時每公里等強配速 5:58–6:06。真實資料只在暫存目錄，未提交。
+- **intervals.icu 實測成功**：金鑰存在雲端環境的網路密鑰（Basic，使用者名稱 API_KEY），運動員 ID 用 `0`（代表金鑰本人）可用。跑步活動都有 `distance`、`altitude`、`fixed_altitude`（intervals.icu 依地形修正的高度）、`latlng` 等串流。來源為 Strava 的活動 `type` 為空（intervals.icu API 不提供 Strava 匯入的內容），之後同步要略過。
+- **做了什麼**：新增 `src/route-profile.mjs`：串流 → 高度剖面，優先 `fixed_altitude`，不保留座標。用一筆真實路線跑 `routeEffort`，手錶高度與修正高度的爬升差距明顯，修正高度較接近 intervals.icu 摘要。真實資料只在暫存目錄，未提交。
 - **刻意不做**：不改 `src/intervals.mjs`。PR #10 已在用戶端加 `streams()`，合併後再讓它多抓 `distance`、`fixed_altitude`（`STREAM_TYPES`）。
 - **測試**：node --test 全數通過（新增 `tests/route-profile.test.mjs` 3 項）。
 
