@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第四則）
+- **做了什麼**：新增 `src/grade-effort.mjs`（純模組）：路線高度剖面 → 平滑（10 m 取樣、±50 m 平均）→ 每 100 m 坡度 → Minetti（2002）等強配速倍數（下坡最多快 10%）→ 每公里配速、預測時間、爬升／下降、平均海拔、等效平路距離、`howCalculated`。規則 `R1-v1`，見 `docs/ALGORITHMS.md` R1。
+- **intervals.icu 金鑰**：使用者已透過雲端環境的網路密鑰表單存了金鑰（Basic，使用者名稱 API_KEY），但以運動員 ID `0` 呼叫仍回 401；待使用者提供運動員 ID 再測。雲端環境目前擋 `api.open-meteo.com`（403），需要時再申請放行。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/grade-effort.test.mjs` 6 項）。
+- **下一步**：取得 intervals.icu 活動的 GPS／高度串流（streams API），把歷史路線轉成 `routeEffort` 的輸入；PR #10 合併後接今日處方介面。
+
 ### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第三則）
 - **做了什麼**：新增 `src/daily-budget.mjs`（純模組）：今日強度預算 `todayBudget`（輸入計畫課、準備度、TSB、昨天與近 28 天平均負荷）與 `budgetFromState`（從 state 取值）。只降不升，取最嚴重規則，輸出決策、調整後的課、所有理由與規則版本 `R18-v1`。規則見 `docs/ALGORITHMS.md` R18（使用者已核准第一版）。
 - **刻意不做**：沒接 API 與介面（PR #10 未合併）。
