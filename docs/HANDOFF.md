@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Codex · codex/claude-handoff
+
+- **做了什麼**　依使用者指示把 AIAC 開發移交 Claude Code。[接手與後續行動](NEXT_STEPS.md) 列出 Git 分支、產品決策、三種執行環境的資料位置及 S1–S8 後續工作。[雲端試用](CLOUD_PREVIEW.md) 記錄已建立的 Neon 和未來的驗收步驟。
+- **狀態**　交接分支以 `245bc33` 為起點，包含 `main` 的 `a567c98` 及較早合入的壺鈴。原 Windows 工作區停在舊提交 `1103111` 且有未提交改動，本次用獨立工作樹。主要功能已核對有新版實作；舊版淺色介面和其餘舊改動保留在原目錄。請由交接分支開新 Claude 分支。
+- **測試**　使用凍結鎖檔安裝，`node --test` 101 項全數通過，`node scripts/build-demo.mjs` 與加 `--cloud` 的本機建置均成功。
+- **未完成／注意**　Neon 在 Vercel 的 CKM 工作區為 Available，尚未連接任何專案。使用者確認尚未部署 AIAC，故遠端 Neon、Vercel、私有 Blob 與 Cron 待未來驗收。Git 不含原始 FIT、真實訓練資料或金鑰。
+
 ### 2026-11-13 · Codex · codex/cloud-preview-and-training-details
 
 - **做了什麼**　S3 加入可獨立執行的 Postgres 存取與交易鎖。S4 備妥 Vercel 建置、單人 API 登入、私有 Blob 介面與每日排程。S5 整理 R1–R10 審閱單，S6 提供三種風格的對照規格。S7 讓活動頁按需讀取 intervals.icu 路線、曲線及分段，並把此功能拆成獨立前端模組。
