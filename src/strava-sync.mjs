@@ -8,13 +8,15 @@ export function stravaSyncDue(settings, now = Date.now()) {
   return settings.status !== 'reauthorize' && (!settings.nextSync || Date.parse(settings.nextSync) <= now);
 }
 
-export function syncStravaIfDue(store, strava, now = Date.now()) {
-  if (!strava.configured() || !strava.connected() || !stravaSyncDue(store.get().connections.strava, now)) return;
+export async function syncStravaIfDue(store, strava, now = Date.now()) {
+  if (!strava.configured() || !strava.connected()) return;
+  const state = await store.get();
+  if (!stravaSyncDue(state.connections.strava, now)) return;
   return syncStrava(store, strava, now);
 }
 
 export async function syncStrava(store, strava, now = Date.now(), {backfill = false} = {}) {
-  const state = store.get();
+  const state = await store.get();
   const settings = state.connections.strava;
   if (settings.status === 'reauthorize') throw Error('Strava 授權已失效，請重新登入授權。');
   if (settings.status === 'rate-limited' && !stravaSyncDue(settings, now)) throw Error('Strava 已達請求上限，請等到下次重試時間。');

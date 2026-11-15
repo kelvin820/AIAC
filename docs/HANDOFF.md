@@ -18,6 +18,27 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-13 · Codex · codex/cloud-preview-and-training-details
+
+- **做了什麼**　S3 加入可獨立執行的 Postgres 存取與交易鎖。S4 備妥 Vercel 建置、單人 API 登入、私有 Blob 介面與每日排程。S5 整理 R1–R10 審閱單，S6 提供三種風格的對照規格。S7 讓活動頁按需讀取 intervals.icu 路線、曲線及分段，並把此功能拆成獨立前端模組。
+- **狀態**　Vercel 團隊可讀取，建立新專案回 403。實際部署、Neon 連線、私有 Blob 和平台排程待遠端驗收。
+- **測試**　101 項通過。已用 PostgreSQL 引擎驗證登入、保存與回復，另測交易鎖拒絕競爭請求。用真實 Garmin 跑步活動與手機寬度的 Chrome 驗證路線、曲線及分段。GitHub Pages 與雲端建置分開。
+- **未完成／注意**　雲端試用只開單人 API。4 MB 上傳上限及設定方式見 `CLOUD_PREVIEW.md`。新生理公式與教練風格待審。其餘前端按功能拆分。
+
+### 2026-11-13 · Codex · codex/api-storage-boundary
+
+- **做了什麼**　完成 S1 真實同步，與來源核對活動負荷及每日體能、疲勞。S2 首頁週次修正在前一個提交。S3 第一段將 HTTP 請求與同步流程移到 `src/application.mjs`，由啟動端提供可非同步的狀態儲存、憑證庫及 FIT 存取；本機仍讀原有資料目錄。手動與背景 intervals.icu 同步共用保存及重試排程，金鑰遭拒後暫停自動同步。
+- **狀態**　分支包含 `codex/current-week-dashboard` 的首頁修正。
+- **測試**　97 項測試全數通過，試用版建置成功。以替身儲存走過 FIT 上傳、讀取與重設。真實資料留在本機。
+- **未完成／注意**　S3 下一段接 Postgres，處理跨程序的寫入衝突，並接雲端環境憑證。上線前需一起驗證私有 FIT 儲存、網站保護與排程。
+
+### 2026-11-13 · Codex · codex/current-week-dashboard
+
+- **做了什麼**　完成 S2 的首頁週次修正。首頁依使用者時區讀取今天所在週的課表、實際訓練和完成度。課表頁保留目前瀏覽的週次。
+- **狀態**　基於 PR #9 合併提交 `a567c98`，整合分支供審查。
+- **測試**　96 項測試全數通過，靜態試用版建置成功。用 Chrome 在本機版及靜態試用版切到上週，確認首頁日期、摘要與圖表仍為本週。
+- **未完成／注意**　S1 等使用者設定本機 intervals.icu 憑證後實測，再處理同步結果及 S3。
+
 ### 2026-11-13 · Claude Code · claude/eloquent-meitner-mz160y
 - **使用者決定**：intervals.icu 有算的就用 intervals.icu 的，沒有才用 AIAC 算法（`docs/ALGORITHMS.md` A2 已核准）。
 - **做了什麼**：`activityLoad` 第 0 步採用 `intervalsLoad`（來源 `intervals`、高可信度）；`performanceSeries` 新增 `anchors` 參數，`state.intervalsFitness`（來自 intervals.icu 健康紀錄的每日 `ctl`／`atl`，`mergeFitness` 寫入，最多保存 800 天）有值的日子直接採用，其餘由 AIAC 公式接續，每天標示來源；`loadSummary`、`performanceData`、目標的 CTL 都改用錨點。備份含 `intervalsFitness` 並驗證，舊備份為空。負荷卡註明體能與疲勞來自 intervals.icu；活動負荷來源名稱新增「intervals.icu」。

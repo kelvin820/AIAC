@@ -24,6 +24,8 @@ node --env-file-if-exists=.env server.mjs
 
 修改課表保留版本紀錄，不覆寫活動。Coaching 提案需確認才套用；已有實際結果的課程不可被提案改寫，活動變動後舊提案失效。可切換前一週／本週／下一週；切換時保留各週課表與已對應的實際活動，新週次預設為休息日。每天第一次開啟時，若「今天」的情境日期已過時，會自動改為當天，原本顯示舊日期所在週的課表也會跟著切到本週；當天手動選的過去日期會保留到隔天。
 
+首頁的「本週」依個人時區固定顯示今天所在的週。切換週課表瀏覽其他週時，首頁的日期範圍、訓練時間、完成度和圖表仍以本週計算。
+
 在「今日訓練」或「週課表」可排全身壺鈴間歇。填可用時間與器材，預覽 4–5 個動作與 2–5 輪。每輪沿用同一套動作，可在動作開始前替換同類站點。計時段結束後確認結果，支援暫停、續練、加休息和提前結束。壺鈴使用完整輪數與動作秒數對照計畫；保留被替代的跑步課程，不換算跑步里程。「訓練研究」提供可搜尋的研究結論、限制與原文連結。
 
 課表預覽和訓練中的「看 3D 示範」可播放動作、切換角度、半速觀看或暫停。示範由 Three.js 在瀏覽器繪製，開啟後才載入；若無法啟用 WebGL 2，仍可讀動作要點。硬舉、深蹲與擺盪的動作重點參考 [ACE 入門指導](https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/)與 [ACE 雙手擺盪教學](https://www.acefitness.org/resources/everyone/exercise-library/391/swing/)。
@@ -95,7 +97,7 @@ INTERVALS_API_KEY=你的 API Key
 INTERVALS_ATHLETE_ID=你的運動員 ID（例如 i12345）
 ```
 
-兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。**intervals.icu 有算的數字優先採用**：活動負荷用 intervals.icu 的訓練負荷，每天的體能與疲勞用 intervals.icu 健康紀錄中的數值；沒有的才由 AIAC 計算（見 `docs/ALGORITHMS.md` A2）。目前不下載 GPS 路線與分圈。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
+兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。**intervals.icu 有算的數字優先採用**：活動負荷用 intervals.icu 的訓練負荷，每天的體能與疲勞用 intervals.icu 健康紀錄中的數值；沒有的才由 AIAC 計算（見 `docs/ALGORITHMS.md` A2）。訓練活動可展開「intervals.icu 路線、曲線與分段」，按需讀取支援的活動詳情。分段採用來源的定義。已有 FIT 地圖時沿用。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
 
 ## 自帶 LLM 與費用
 
@@ -151,3 +153,5 @@ Strava 官方 endpoint：`https://mcp.strava.com/mcp`，需要訂閱與 OAuth。
 ## 建置線上試用版
 
 執行 `node scripts/build-demo.mjs` 產生 dist，再執行 `node scripts/preview-demo.mjs` 於 http://127.0.0.1:3141/AIAC/ 預覽。公開部署由 GitHub Actions 建置；dist 不含 data、.env 或任何使用者憑證。Mock 與活動計算沿用共用核心。訪客各自在瀏覽器 localStorage 保存，清除瀏覽器資料會清除試用紀錄，原始 FIT 不上傳也不保存。線上 LLM Key／Strava／MCP 按鈕停用，不把本機單使用者服務直接公開。
+
+個人雲端試用的資料庫、登入與部署設定見 [Vercel 試用說明](docs/CLOUD_PREVIEW.md)。

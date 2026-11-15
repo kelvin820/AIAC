@@ -50,5 +50,10 @@ test('HTTP coaching loop, accept/reject, stale proposal, and restart persistence
   await stop();await start();
   assert.deepEqual((await call('state')).data.kettlebell.active,paused.data.kettlebell.active);
   assert.equal((await call('backup')).data.data.kettlebell.plans[date].rounds,4);
+  const originalWeek=(await call('state')).data.currentWeek;
+  const nextDate=new Date(Date.parse(date)+7*86400000).toISOString().slice(0,10);
+  const nextWeek=(await call('plan-week',{date:nextDate})).data;
+  assert.notEqual(nextWeek.plan[0].id,originalWeek.plan[0].id);
+  assert.deepEqual(nextWeek.currentWeek,originalWeek);
  }finally{if(child)await stop();await rm(dir,{recursive:true,force:true});}
 });
