@@ -4,7 +4,7 @@
 // Rules are docs/ALGORITHMS.md R18 (first version, approved 2026-11-15, AIAC's own thresholds).
 // Every adjustment carries a reason so the AI coach and the UI can explain it.
 import {readiness} from './wellness.mjs';
-import {performanceSeries, dailyLoads, defaultAthlete} from './training-load.mjs';
+import {performanceSeries, dailyLoads, defaultAthlete, loadActivities} from './training-load.mjs';
 
 export const RULE_VERSION = 'R18-v1';
 export const DEFAULT_SESSION = {type:'Zone2', minutes:40};
@@ -68,7 +68,7 @@ export function budgetFromState(state, today = state.context.date) {
   const athlete = state.athlete ?? defaultAthlete();
   const days = [...Object.values(state.planHistory ?? {}).flat(), ...(state.plan ?? [])];
   const planDay = days.find(d => d.id === today) ?? null;
-  const activities = state.activities ?? [];
+  const activities = state.kettlebell ? loadActivities(state) : state.activities ?? [];
   const series = performanceSeries(activities, athlete, today, state.intervalsFitness);
   const todayRow = series.at(-1)?.date === today ? series.at(-1) : null;
   // Form going into today: yesterday's values, not today's (today's training has not happened yet).

@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第二則）
+- **做了什麼**：首頁新增「今日處方」卡。`src/prescription.mjs` 組合強度預算（`daily-budget.mjs`，改用含壺鈴的 `loadActivities`）與替代運動（`cross-training.mjs`）；`view()`（本機、雲端、試用版共用的 `application.mjs` 與 `demo-service.mjs`）新增 `prescription`；教練 LLM 輸入新增精簡的 `todayPrescription`。個人資料新增「騎車閾值心率」`bikeLthr`（80–220）。前端在首頁準備度下方顯示處方、理由與「今天不想跑？」四種替代（前端切換，不呼叫 API／LLM）。壺鈴日只顯示提示。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 125 項通過（新增 `tests/prescription.test.mjs` 3 項）；build-demo 成功；Playwright 以暫存測試資料（節奏跑＋睡 5 小時、疲勞 5）在桌機與手機寬度驗證降為恢復跑 35 分、替代選單與計算說明，無 console 錯誤。
+- **下一步**：intervals.icu `streams()` 加抓 `distance`、`fixed_altitude`，歷史路線清單與每公里等強配速（`grade-effort.mjs`）；之後天氣／空氣品質（需放行 Open-Meteo）。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next
 - **做了什麼**：依 `docs/NEXT_STEPS.md` 從 `origin/codex/claude-handoff` 開工作樹與新分支 `claude/aiac-next` 接手。併入 `claude/eloquent-meitner-mz160y` 在 PR #9 之後尚未合併的「今日處方」成果：`docs/PRODUCT_CORE.md`、`docs/ALGORITHMS.md` R11–R18 與 R1／R15／R16／R18 決定，以及純模組 `cross-training.mjs`、`daily-budget.mjs`、`grade-effort.mjs`、`route-profile.mjs`（含測試）。
 - **衝突**：只有 `docs/HANDOFF.md`，雙方紀錄都保留，依日期排序（Codex 交接 → Claude 11-15 → 11-13）。

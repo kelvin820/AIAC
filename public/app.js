@@ -569,7 +569,7 @@ function focusRecommendation(){
 $('#journal-filter').addEventListener('change',()=>{if(state)renderJournal();});
 function renderAthlete(){
  const athlete=state.athlete;
- fill('#athlete-form',{maxHeartRate:athlete.maxHeartRate??'',restingHeartRate:athlete.restingHeartRate??'',lthr:athlete.lthr??'',thresholdPace:athlete.thresholdPaceSecPerKm?formatPace(athlete.thresholdPaceSecPerKm):'',ftp:athlete.ftp??'',weightKg:athlete.weightKg??''});
+ fill('#athlete-form',{maxHeartRate:athlete.maxHeartRate??'',restingHeartRate:athlete.restingHeartRate??'',lthr:athlete.lthr??'',thresholdPace:athlete.thresholdPaceSecPerKm?formatPace(athlete.thresholdPaceSecPerKm):'',ftp:athlete.ftp??'',weightKg:athlete.weightKg??'',bikeLthr:athlete.bikeLthr??''});
 }
 
 const goalMetrics={performance:[['ctl','體能 CTL（自動）'],['thresholdPace','臨界配速（自動，分:秒/km）'],['weeklyMinutes','近 4 週平均每週分鐘（自動）'],['custom','自訂指標（手動更新）']],body:[['weightKg','體重 kg（自動，來自訓練閾值）'],['custom','自訂指標（手動更新）']]};
@@ -734,10 +734,36 @@ document.querySelector('#health').addEventListener('click',e=>{
  const del=e.target.closest('[data-wdelete]');if(del){if(!window.confirm(`確定刪除 ${del.dataset.wdelete} 的健康紀錄？`))return;action(async()=>{state=await api('wellness',{action:'delete',date:del.dataset.wdelete});render();notice('紀錄已刪除。');});return;}
  const ap=e.target.closest('[data-apply-threshold]');if(ap)action(async()=>{state=await api('wellness',{action:'apply-threshold',field:ap.dataset.applyThreshold});render();notice('訓練閾值已更新，負荷與目標已重新計算。');});
 });
+let substituteMode=null;
+const decisionLabels={'as-planned':'照計畫','reduced':'已降強度','rest-or-recovery':'建議休息','rest':'休息日'};
+const coverageLabels={full:'可以替代',partial:'部分替代'};
+function targetText(t){
+ const hr=t.kind==='hr'?`心率 ${t.low}–${t.high} bpm`:`自覺強度 ${t.low}–${t.high}（1–10）`;
+ return t.pace?`配速 ${formatPace(t.pace.low)}–${formatPace(t.pace.high)} /km · ${hr}`:hr;
+}
+function renderPrescription(){
+ const p=state.prescription,box=$('#prescription');
+ if(!p){box.hidden=true;return;}
+ box.hidden=false;
+ if(p.kettlebell){box.innerHTML='<div class="card-title"><h2>今日處方</h2><span>壺鈴日</span></div><p class="muted">今天安排了全身壺鈴間歇，從今日課表開始計時。</p>';return;}
+ const b=p.budget,changed=b.planned.type!==b.session.type||b.planned.minutes!==b.session.minutes;
+ const session=b.session.type==='Rest'?'休息':`${esc(b.session.label)} <small>${b.session.minutes} 分鐘</small>`;
+ const reasons=b.reasons.map(r=>`<li${r.applied?' data-applied':''}>${esc(r.text)}</li>`).join('');
+ const options=p.substitutes.map(s=>`<button type="button" class="chip" data-substitute="${esc(s.mode)}" aria-pressed="${substituteMode===s.mode}">${esc(s.label)}</button>`).join('');
+ const s=p.substitutes.find(x=>x.mode===substituteMode);
+ const detail=s?`<div class="substitute-detail"><div class="substitute-head"><strong>${esc(s.label)} ${s.minutes} 分鐘</strong><span class="badge" data-coverage="${s.coverage}">${coverageLabels[s.coverage]}</span></div><p>${esc(targetText(s.target))}</p>${s.tips.length?`<ul class="tips">${s.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}${s.missing.length?`<p class="small">少練到：${esc(s.missing.join('、'))}</p>`:''}<details><summary>怎麼算的</summary><p class="small">${esc(s.howCalculated)}</p></details></div>`:'';
+ box.innerHTML=`<div class="card-title"><h2>今日處方</h2><span class="decision" data-decision="${b.decision}">${decisionLabels[b.decision]}</span></div>
+ <div class="prescription-main"><p class="prescription-session">${session}</p>${changed?`<p class="small">原計畫：${esc(b.planned.label)} ${b.planned.minutes} 分鐘</p>`:''}</div>
+ <ul class="prescription-reasons">${reasons}</ul>
+ ${p.substitutes.length?`<div class="substitutes"><p class="check-in-question">今天不想跑？換成：</p><div class="chips">${options}</div>${detail}</div>`:''}
+ <p class="small">依恢復、負荷與計畫計算，只降不升，不呼叫 AI。規則版本 ${esc(b.rule)}。</p>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-substitute]');if(!b)return;substituteMode=substituteMode===b.dataset.substitute?null:b.dataset.substitute;renderPrescription();});
+
 function render(){
  $('#mode').textContent=state.mode==='live'?'外部模型':'Mock 模式';fill('#profile-form',state.profile);renderCheckIn();
  const week=state.currentWeek,b=week.budget;
- renderKpis(week);renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();
+ renderKpis(week);renderPrescription();renderLoad();renderPerformance();renderCalendar();renderGoals();renderTrainingPlan();renderHealth();
  renderAthlete();
  $('#budget').innerHTML=weekChart(week)+`<div class="track"><progress value="${b.completed}" max="${Math.max(b.target,1)}" aria-label="每週實際訓練時間進度"></progress></div><div class="stats"><span>規劃 ${Number(b.planned.toFixed(1))} 分鐘</span><span>預計跑步品質課 ${b.quality} 次</span></div><p class="small">剩餘時間目標 ${Math.max(0,b.target-b.completed).toFixed(1)} 分鐘；不代表應全部補足。<br>跑步與壺鈴可計入活動時間，課程完成度分開比較。</p>`;
  const r=state.recommendations.at(-1);
@@ -755,7 +781,7 @@ function render(){
  renderJournal();
 }
 document.addEventListener('click',e=>{const tab=e.target.closest('[data-tab]');if(tab)showPage(tab.dataset.tab);const prompt=e.target.closest('[data-prompt]');if(prompt){$('#chat-input').value=prompt.dataset.prompt;$('#chat-input').focus();}const decision=e.target.closest('[data-decision]');if(decision)action(async()=>{state=await api('decision',{id:decision.dataset.id,decision:decision.dataset.decision});render();notice(decision.dataset.decision==='accepted'?'已套用課表並保存修改紀錄。':'已保留原課表，拒絕紀錄已保存。');});const save=e.target.closest('[data-memory-save]'),del=e.target.closest('[data-memory-delete]');if(save||del)action(async()=>{const id=save?.dataset.memorySave||del.dataset.memoryDelete;state=await api('memory',save?{id,text:document.querySelector(`[data-memory="${id}"]`).value}:{id,action:'delete'});render();notice('記憶已更新。');});});
-$('#athlete-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const f=formValue('#athlete-form');state=await api('athlete',{athlete:{maxHeartRate:f.maxHeartRate,restingHeartRate:f.restingHeartRate,lthr:f.lthr,thresholdPaceSecPerKm:parsePace(f.thresholdPace),ftp:f.ftp,weightKg:f.weightKg}});render();notice('訓練閾值已保存，負荷與狀態已重新計算。');});});
+$('#athlete-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const f=formValue('#athlete-form');state=await api('athlete',{athlete:{maxHeartRate:f.maxHeartRate,restingHeartRate:f.restingHeartRate,lthr:f.lthr,thresholdPaceSecPerKm:parsePace(f.thresholdPace),ftp:f.ftp,weightKg:f.weightKg,bikeLthr:f.bikeLthr}});render();notice('訓練閾值已保存，負荷與狀態已重新計算。');});});
 $('#profile-form').addEventListener('submit',e=>{e.preventDefault();action(async()=>{state=await api('settings',settings());render();notice('個人設定與目前情境已保存。');});});
 $('#context-form').addEventListener('invalid',event=>{
  const details=event.target.closest('details');

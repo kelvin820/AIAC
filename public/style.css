@@ -788,3 +788,26 @@ nav button[data-tab=activity-log]{--ic:#57D6C7}
 .inline-select{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px}
 .inline-select select{width:auto;margin:0;padding:8px 10px}
 #intervals-status code{font-size:12px;background:var(--field);padding:1px 5px;border-radius:4px}
+
+.prescription-card .decision{padding:3px 10px;border-radius:var(--pill);border:1px solid var(--line-2);color:var(--text-2);font-weight:600}
+.prescription-card .decision[data-decision="as-planned"]{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 45%,transparent)}
+.prescription-card .decision[data-decision="reduced"],.prescription-card .decision[data-decision="rest-or-recovery"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.prescription-session{font-size:26px;font-weight:800;margin:4px 0 2px;letter-spacing:-.01em}
+.prescription-session small{font-size:15px;color:var(--muted);font-weight:500;margin-left:6px}
+.prescription-reasons{list-style:none;padding:0;margin:10px 0;display:grid;gap:4px;font-size:13px;color:var(--text-2)}
+.prescription-reasons li::before{content:"· ";color:var(--muted)}
+.prescription-reasons li[data-applied]{color:var(--text)}
+.prescription-reasons li[data-applied]::before{content:"▸ ";color:var(--accent)}
+.substitutes{border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line-2);background:var(--field);color:var(--text-2);padding:7px 14px;border-radius:var(--pill);font-size:13px}
+.chip:hover{color:var(--text)}
+.chip[aria-pressed="true"]{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,transparent)}
+.substitute-detail{margin-top:12px;padding:14px;border-radius:var(--r-s);background:var(--panel-2);border:1px solid var(--line)}
+.substitute-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.substitute-head strong{font-size:17px}
+.badge{font-size:12px;padding:2px 9px;border-radius:var(--pill);border:1px solid var(--line-2)}
+.badge[data-coverage="full"]{color:var(--brand)}
+.badge[data-coverage="partial"]{color:var(--accent)}
+.substitute-detail .tips{margin:8px 0;padding-left:18px;font-size:13px;color:var(--text-2)}
+.substitute-detail details summary{cursor:pointer;font-size:13px;color:var(--muted)}

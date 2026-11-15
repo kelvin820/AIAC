@@ -99,6 +99,10 @@ INTERVALS_ATHLETE_ID=你的運動員 ID（例如 i12345）
 
 兩者都在 intervals.icu 的 Settings → Developer Settings。重啟後首次同步讀取最近 90 天，之後每 15 分鐘自動同步（重疊 2 天以讀取稍晚上傳的資料），也可在「資料」分頁立即同步或補抓 180 天／1 年。同一筆活動從 FIT、Garmin、Strava 與 intervals.icu 進來時依既有規則去重並合併來源；健康數據以 intervals.icu 為主，intervals.icu 沒有的欄位保留手填值，備註不覆蓋。intervals.icu 的 1–4 主觀分數換算為 AIAC 的 1–5（見 `docs/ALGORITHMS.md` D2）。**intervals.icu 有算的數字優先採用**：活動負荷用 intervals.icu 的訓練負荷，每天的體能與疲勞用 intervals.icu 健康紀錄中的數值；沒有的才由 AIAC 計算（見 `docs/ALGORITHMS.md` A2）。訓練活動可展開「intervals.icu 路線、曲線與分段」，按需讀取支援的活動詳情。分段採用來源的定義。已有 FIT 地圖時沿用。Key 只存在本機 `.env`，不寫入資料檔、不回傳前端。
 
+## 今日處方
+
+首頁「今日處方」依計畫課、今日準備度、體能／疲勞與昨天的負荷，決定今天的課（只降不升，列出每個理由；規則見 `docs/ALGORITHMS.md` R18）。「今天不想跑？」可換成跑步機、室內／戶外腳踏車或滑步機，顯示時間、心率或配速、可否替代、少練到什麼與計算方式（R15、R16）。騎車心率依個人資料的「騎車閾值心率」，未填時以跑步閾值 − 10 估算。全部在本機計算，不呼叫 LLM。產品設計見 `docs/PRODUCT_CORE.md`。
+
 ## 自帶 LLM 與費用
 
 在「同步與設定 → 教練與額度」貼自己的 API Key、Base URL 與模型 ID。接口需相容 `/chat/completions`、`response_format: json_object`、`max_tokens`。支援 HTTPS，本機模型可用 localhost HTTP。
@@ -108,7 +112,7 @@ INTERVALS_ATHLETE_ID=你的運動員 ID（例如 i12345）
 - 選擇照原計畫只保存情境。外部模型模式下，請教練調整、送出對話或分析單筆活動時才會呼叫供應商。
 - 每日嘗試上限預設 5 次，單次輸出上限 800 tokens，可調整。失敗也占額度，供應商可能仍計費。輸入亦計費，因此這不是精確金額上限。
 - 輸入情境最多 32000 字元，最近 12 則對話每則最多 1200 字元、10 筆活動摘要、20 筆記憶。不傳 FIT 原始位元組與逐秒紀錄。
-- 傳送範圍：Profile、進行中的目標（最多 5 個）、目前訓練計畫的週次與區塊、今天的結構化課表、今日準備度、Daily Context、週計畫、Budget、已確認記憶、有限活動摘要及對話。移除 Key 會切回 Mock。Mock 不是 LLM，也不是科學驗證的訓練引擎。
+- 傳送範圍：Profile、進行中的目標（最多 5 個）、目前訓練計畫的週次與區塊、今天的結構化課表、今日處方（強度預算的決定、理由與替代運動換算）、今日準備度、Daily Context、週計畫、Budget、已確認記憶、有限活動摘要及對話。移除 Key 會切回 Mock。Mock 不是 LLM，也不是科學驗證的訓練引擎。
 - AIAC 付費代管尚未開通；沒有結帳、錢包、多用戶額度或共享 Key，尚不收費。
 
 Strava 匯入資料限本機摘要與對照。合併 Garmin 與 Strava 的單筆活動若有本機原始 FIT，可從 FIT 重建分析摘要並交給已設定的外部模型。
