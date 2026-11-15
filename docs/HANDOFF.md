@@ -18,6 +18,16 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/llm-nvidia
+- **做了什麼**：接使用者的 NVIDIA LLM。`coach.mjs` 新增 `parseModelJson`（去掉 `<think>`、程式碼框與前後文字再解析 JSON，仍需通過原本的欄位檢查）；LLM 等待上限 45 → 90 秒。Vercel 設定 `AIAC_LLM_BASE_URL`、`AIAC_LLM_MODEL`，金鑰由使用者設定。也併入 `claude/vercel-deploy-notes` 的部署紀錄。
+- **實測**：從 Claude 雲端環境呼叫 NVIDIA，大模型在 30 秒時被代理斷線（502 upstream request failed，串流也一樣），無法在此驗證；已下架模型會立即回 410，代表連線與金鑰正常。改在 Vercel 上由使用者實測。
+- **測試**：node --test 148 項通過（新增 1 項）。
+
+### 2026-11-15 · Claude Code · claude/vercel-deploy-notes
+- **做了什麼**：部署 Vercel 單人試用（細節見 `docs/CLOUD_PREVIEW.md`「部署狀態」）。建立專案、私有 Blob、`INTERVALS_ATHLETE_ID`、`CRON_SECRET`；使用者連 Neon、設登入密碼與 intervals.icu 金鑰。修正框架自動判斷錯誤（改為 Other）。PR #11 已 squash 合併到 `main`。
+- **測試**：只改文件。
+- **未完成／注意**：`claude/aiac-next`、`claude/eloquent-meitner-mz160y` 遠端刪除失敗（推送刪除時斷線），請使用者在 GitHub 手動刪除。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第九則）
 - **使用者決定**：路線推薦規則第一版核准；開 PR 以 squash 合併到 `main`，合併後刪除 `claude/aiac-next` 與 `claude/eloquent-meitner-mz160y`。
 - **狀態**：本則為合併前最後一則。今日處方（R1、R2、R11、R12、R14–R18、路線推薦）都已上線到 `main`（含 Codex 交接分支的雲端準備）。
