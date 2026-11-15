@@ -13,7 +13,7 @@
 - Node 24、安裝 `pnpm install --frozen-lockfile`。
 - 環境變數：Neon 已連（`DATABASE_URL` 等）、私有 Blob `aiac-fit-private`（東京）已連、`AIAC_PREVIEW_PASSWORD` 與 `INTERVALS_API_KEY`（使用者自行設定）、`INTERVALS_ATHLETE_ID=0`、`CRON_SECRET`。未設 LLM 金鑰，教練為 Mock。
 - 團隊預設的 Vercel Authentication 保護所有 `.vercel.app` 網址：先登入 Vercel，再以 `aiac`＋試用密碼登入 AIAC。
-- LLM：NVIDIA（`AIAC_LLM_BASE_URL=https://integrate.api.nvidia.com/v1`、`AIAC_LLM_MODEL=deepseek-ai/deepseek-v4.1-flash`，可在 Vercel 改模型），金鑰 `AIAC_LLM_API_KEY` 由使用者設定。教練等待上限 90 秒；部分模型會在 JSON 外加思考過程或程式碼框，`parseModelJson` 會取出 JSON。
+- LLM：NVIDIA（`AIAC_LLM_BASE_URL=https://integrate.api.nvidia.com/v1`、`AIAC_LLM_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b`、`AIAC_LLM_DISABLE_THINKING=1` 關掉推理模型的思考過程），金鑰 `AIAC_LLM_API_KEY` 由使用者設定。`vercel.json` 設 `maxDuration: 120`（原本沒設，教練呼叫會被函式時限切斷而顯示 timeout）。教練等待上限 90 秒；`parseModelJson` 會從思考過程或程式碼框中取出 JSON。
 - 已驗證：建置成功、首頁 200、未登入的資料 API 回 401。待使用者實際登入走同步、路線庫、天氣與校正。
 
 ## 設定
