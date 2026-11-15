@@ -18,6 +18,13 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next
+- **做了什麼**：依 `docs/NEXT_STEPS.md` 從 `origin/codex/claude-handoff` 開工作樹與新分支 `claude/aiac-next` 接手。併入 `claude/eloquent-meitner-mz160y` 在 PR #9 之後尚未合併的「今日處方」成果：`docs/PRODUCT_CORE.md`、`docs/ALGORITHMS.md` R11–R18 與 R1／R15／R16／R18 決定，以及純模組 `cross-training.mjs`、`daily-budget.mjs`、`grade-effort.mjs`、`route-profile.mjs`（含測試）。
+- **衝突**：只有 `docs/HANDOFF.md`，雙方紀錄都保留，依日期排序（Codex 交接 → Claude 11-15 → 11-13）。
+- **狀態**：已推分支，未開 PR。今後以 `claude/aiac-next` 為 Claude 的開發分支；`claude/eloquent-meitner-mz160y` 不再使用。
+- **測試**：node --test 122 項全數通過（Codex 101 項＋今日處方 21 項）。
+- **下一步**：把今日處方接上 `src/application.mjs` 與首頁：強度預算、「今天不想跑」替代選單；intervals.icu `streams()` 加抓 `distance`、`fixed_altitude`，以歷史路線計算等強配速。
+
 ### 2026-11-15 · Codex · codex/claude-handoff
 
 - **做了什麼**　依使用者指示把 AIAC 開發移交 Claude Code。[接手與後續行動](NEXT_STEPS.md) 列出 Git 分支、產品決策、三種執行環境的資料位置及 S1–S8 後續工作。[雲端試用](CLOUD_PREVIEW.md) 記錄已建立的 Neon 和未來的驗收步驟。
@@ -25,6 +32,41 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 - **測試**　使用凍結鎖檔安裝，`node --test` 101 項全數通過，`node scripts/build-demo.mjs` 與加 `--cloud` 的本機建置均成功。
 - **未完成／注意**　Neon 在 Vercel 的 CKM 工作區為 Available，尚未連接任何專案。使用者確認尚未部署 AIAC，故遠端 Neon、Vercel、私有 Blob 與 Cron 待未來驗收。Git 不含原始 FIT、真實訓練資料或金鑰。
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第五則）
+- **intervals.icu 實測成功**：金鑰存在雲端環境的網路密鑰（Basic，使用者名稱 API_KEY），運動員 ID 用 `0`（代表金鑰本人）可用。近一年 61 筆活動、37 筆跑步，跑步都有 `distance`、`altitude`、`fixed_altitude`（intervals.icu 依地形修正的高度）、`latlng` 等串流。有 8 筆來源為 Strava 的活動 `type` 為空（intervals.icu API 不提供 Strava 匯入的內容），之後同步要略過。
+- **做了什麼**：新增 `src/route-profile.mjs`：串流 → 高度剖面，優先 `fixed_altitude`，不保留座標。用一筆真實 5.5 km 路線跑 `routeEffort`：手錶高度平滑後爬升 9 m、修正高度 46 m（intervals.icu 摘要 37 m），平均海拔約 10–13 m，平路 6:00 時每公里等強配速 5:58–6:06。真實資料只在暫存目錄，未提交。
+- **刻意不做**：不改 `src/intervals.mjs`。PR #10 已在用戶端加 `streams()`，合併後再讓它多抓 `distance`、`fixed_altitude`（`STREAM_TYPES`）。
+- **測試**：node --test 全數通過（新增 `tests/route-profile.test.mjs` 3 項）。
+
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第四則）
+- **做了什麼**：新增 `src/grade-effort.mjs`（純模組）：路線高度剖面 → 平滑（10 m 取樣、±50 m 平均）→ 每 100 m 坡度 → Minetti（2002）等強配速倍數（下坡最多快 10%）→ 每公里配速、預測時間、爬升／下降、平均海拔、等效平路距離、`howCalculated`。規則 `R1-v1`，見 `docs/ALGORITHMS.md` R1。
+- **intervals.icu 金鑰**：使用者已透過雲端環境的網路密鑰表單存了金鑰（Basic，使用者名稱 API_KEY），但以運動員 ID `0` 呼叫仍回 401；待使用者提供運動員 ID 再測。雲端環境目前擋 `api.open-meteo.com`（403），需要時再申請放行。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/grade-effort.test.mjs` 6 項）。
+- **下一步**：取得 intervals.icu 活動的 GPS／高度串流（streams API），把歷史路線轉成 `routeEffort` 的輸入；PR #10 合併後接今日處方介面。
+
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第三則）
+- **做了什麼**：新增 `src/daily-budget.mjs`（純模組）：今日強度預算 `todayBudget`（輸入計畫課、準備度、TSB、昨天與近 28 天平均負荷）與 `budgetFromState`（從 state 取值）。只降不升，取最嚴重規則，輸出決策、調整後的課、所有理由與規則版本 `R18-v1`。規則見 `docs/ALGORITHMS.md` R18（使用者已核准第一版）。
+- **刻意不做**：沒接 API 與介面（PR #10 未合併）。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/daily-budget.test.mjs` 7 項）。
+- **下一步**：PR #10 合併後，今日頁顯示「今日處方」：預算結果＋「今天不想跑」替代選單（`cross-training.mjs`）；個人資料加騎車閾值心率。之後接 intervals.icu 歷史 GPS 路線與坡度等強（R1，需先核准方法）。
+
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第二則）
+- **做了什麼**：新增 `src/cross-training.mjs`（純模組，瀏覽器試用版可共用）：把計畫中的跑步課換成跑步機、室內／戶外腳踏車或滑步機，輸出時間、心率（或自覺強度、跑步機配速）、可替代程度（full／partial）、少練到什麼、提示（跑步機 1% 坡度等），以及 `howCalculated` 文字與規則版本 `R16-v1`，供 AI 教練說明算法、之後校正。規則見 `docs/ALGORITHMS.md` R15／R16（使用者已核准第一版）。
+- **刻意不做**：還沒接 API 與介面。PR #10 未合併，避免改 `server.mjs`、`app.js`。`athlete.bikeLthr`（騎車閾值心率）模組已支援，但個人資料欄位與驗證尚未加，等 PR #10 合併後一起接。
+- **狀態**：已推分支，未開 PR。
+- **測試**：node --test 全數通過（新增 `tests/cross-training.test.mjs` 5 項）。
+- **下一步**：PR #10 合併後：個人資料加騎車閾值心率、`/api` 與今日頁「今天不想跑」選擇；再做今日強度預算（R18，規則需先核准）。
+
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y
+- **使用者重新定義產品**：核心是「事前算好強度的今日運動處方」：依昨天訓練、恢復、體能，結合天氣、空氣品質、路線坡度與地點限制，推薦路線與每公里配速；改室內、跑步機或替代運動可以是使用者主觀選擇；LLM 只做教練式解釋。
+- **做了什麼**：只改文件。新增 `docs/PRODUCT_CORE.md`（決策流程、元件、資料來源、開發順序、待回答問題）；`docs/ALGORITHMS.md` 新增 R11–R18，含 R16 替代運動（騎車、滑步機）初步調研與 R15 跑步機 1% 坡度（Jones & Doust 1996）。
+- **使用者決定**：風只給「無風／有風／強風」概念，不逐段計算；空氣品質只給三級指引（建議戶外／都可以／不建議戶外），不進等強換算；替代運動是特色，要調研。
+- **狀態**：已推分支，未開 PR。
+- **測試**：未改程式，未跑測試。
+- **未完成／注意**：開發等 Codex 的 PR #10 合併後開始，順序見 `PRODUCT_CORE.md`。R11–R18 都是待研究，核准前不實作。
+- **補充（同日）**：使用者回答：只用歷史路線；處方輸出配速＋心率上限、不做功率（演算法用物理訊號逼近功率）；預設出發 05:30、地點台北士林（可改）；替代運動第一版為腳踏車（室內／戶外）與滑步機；沒數據可先用經驗法則（跑 60 分 ≈ 騎 90 分）但要寫清楚並由 AI 教練說明；跑步機處方提示設 1% 坡度。已寫入 `PRODUCT_CORE.md` 與 `ALGORITHMS.md` R10／R15／R16。
 ### 2026-11-13 · Codex · codex/cloud-preview-and-training-details
 
 - **做了什麼**　S3 加入可獨立執行的 Postgres 存取與交易鎖。S4 備妥 Vercel 建置、單人 API 登入、私有 Blob 介面與每日排程。S5 整理 R1–R10 審閱單，S6 提供三種風格的對照規格。S7 讓活動頁按需讀取 intervals.icu 路線、曲線及分段，並把此功能拆成獨立前端模組。
