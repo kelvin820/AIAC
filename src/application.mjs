@@ -20,6 +20,7 @@ import {activePlanStatus,trainingPlanAction} from './training-plan.mjs';
 import {workoutsView} from './workout-structure.mjs';
 import {wellnessAction,wellnessView} from './wellness.mjs';
 import {prescriptionView} from './prescription.mjs';
+import {calibrationView,startHour,weatherPending} from './calibration.mjs';
 import {addEntries,pendingActivities,routeEntry} from './route-library.mjs';
 import {createOpenMeteo,validateSettings} from './weather.mjs';
 import {updateKettlebell} from '../public/kettlebell-core.js';
@@ -35,7 +36,7 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
  const strava = createStrava(vault, new URL('/auth/strava/callback', base).href, env);
  let nextIntervalsSync = 0, nextGarminSync = 0, busy = false;
  const activityVersion=s=>JSON.stringify(s.activities.map(a=>[a.id,a.planId,a.durationSeconds,a.trainingType,...(a.kettlebellSessionId?[a.kettlebellSessionId]:[])]));
- function view(s){return {...s,budget:budget(s),comparison:comparison(s),currentWeek:currentWeekView(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),wellnessView:wellnessView(s,todayIn(s.context.timezone)),prescription:prescriptionView(s,todayIn(s.context.timezone)),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,intervals:{...(s.connections.intervals??{}),configured:intervals.configured(),nextSync:intervals.configured()&&Number.isFinite(nextIntervalsSync)&&nextIntervalsSync?new Date(nextIntervalsSync).toISOString():null},garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
+ function view(s){return {...s,budget:budget(s),comparison:comparison(s),currentWeek:currentWeekView(s),load:loadSummary(s),performance:performanceData(s),goalsView:goalsSummary(s),planStatus:activePlanStatus(s,todayIn(s.context.timezone)),workouts:workoutsView(s),wellnessView:wellnessView(s,todayIn(s.context.timezone)),prescription:prescriptionView(s,todayIn(s.context.timezone)),calibration:calibrationView(s),mode:s.connections.llm.mode==='byok'?'live':'mock',connections:{...s.connections,intervals:{...(s.connections.intervals??{}),configured:intervals.configured(),nextSync:intervals.configured()&&Number.isFinite(nextIntervalsSync)&&nextIntervalsSync?new Date(nextIntervalsSync).toISOString():null},garmin:{...s.connections.garmin,configured:garmin.configured(),nextSync:garmin.configured()&&Number.isFinite(nextGarminSync)&&nextGarminSync?new Date(nextGarminSync).toISOString():null},llm:{...s.connections.llm,hasKey:Boolean(vault.get().llmKey)},mcp:{...s.connections.mcp,hasBearer:Boolean(vault.get().mcpBearer)},strava:{...s.connections.strava,configured:strava.configured(),connected:Boolean(vault.get().stravaTokens)}},summaries:Object.fromEntries(s.activities.map(a=>[a.id,activitySummary(a)]))};}
  const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
  async function raw(req,max=100000){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('輸入過長');chunks.push(chunk);}return Buffer.concat(chunks);}
  async function body(req,max){return JSON.parse((await raw(req,max)).toString()||'{}');}
@@ -139,6 +140,22 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
      const raw=await openMeteo.forecast(settings,s.context.timezone||'Asia/Taipei');
      s.weather={fetchedAt:new Date().toISOString(),latitude:settings.latitude,longitude:settings.longitude,raw};
      await store.save(s);return send(res,200,view(s));
+    }else if(req.url==='/api/calibration-weather'){
+     let added=0,error=null;
+     s.runWeather??={};
+     for(const {activity,entry} of weatherPending(s,15)){
+      const hour=startHour(activity,activity.timezone||s.context.timezone);
+      if(!hour)continue;
+      try{
+       const raw=await openMeteo.archive({latitude:entry.start[0],longitude:entry.start[1]},hour.slice(0,10),activity.timezone||s.context.timezone||'Asia/Taipei');
+       const i=raw?.hourly?.time?.indexOf(hour)??-1;
+       const temperature=raw?.hourly?.temperature_2m?.[i],humidity=raw?.hourly?.relative_humidity_2m?.[i];
+       if(i<0||!Number.isFinite(temperature)||!Number.isFinite(humidity))continue;
+       s.runWeather[activity.id]={hour,temperature,humidity};added++;
+      }catch(e){error=e.message;break;}
+     }
+     await store.save(s);
+     return send(res,200,{...view(s),calibrationWeather:{added,error,remaining:weatherPending(s,1000).length}});
     }else if(req.url==='/api/route-library'){
      if(!intervals.configured())throw Error('請先設定 intervals.icu，才能從你跑過的路線建立路線庫。');
      const entries=[],skipped=[];

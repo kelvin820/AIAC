@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第八則）
+- **使用者決定**：R17 第一版核准；雲端預設環境放行 `archive-api.open-meteo.com`。
+- **做了什麼**：`src/calibration.mjs`（挑選穩定輕鬆跑、比值、指數加權個人係數、待補天氣清單、起跑整點）；路線庫條目升到 v2，多存熱身後心率變異（舊條目會在下次「更新路線庫」重讀）；`openMeteo.archive()`（429 時提示額度用完）；`POST /api/calibration-weather` 每次最多 15 筆；`view().calibration`；推薦路線套用個人係數並標示；個人資料新增「跑後校正」卡。
+- **注意**：Open-Meteo 免費額度以 IP 計，雲端共用 IP 有時會回 429（今日額度已用完），程式會停下並保留已讀取的部分；在使用者電腦或 Vercel 上是不同 IP。
+- **測試**：node --test 147 項通過（新增 `tests/calibration.test.mjs` 6 項、心率穩定度 1 項）；build-demo 成功；以真實帳號走完同步、帶入閾值、建路線庫、讀歷史天氣，係數已啟用；桌機與手機無 console 錯誤、無橫向捲動。真實數值不寫入倉庫。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第七則）
 - **使用者決定**：本分支合併到 `main` 時用 squash，合併後刪除 `claude/aiac-next` 與 `claude/eloquent-meitner-mz160y`（舊提交中有少量真實訓練數字，不進 main）。
 - **做了什麼**：R2 依 A2 採用 intervals.icu 的臨界速度（CS）模型：用戶端 `paceCurve()`（`/pace-curves.json?type=Run&curves=1y`）、`mapCriticalPace`，同步時存到 `state.intervalsAthlete.criticalPace`；個人資料建議值在 intervals.icu 沒設定臨界配速時改用它，並說明來源。

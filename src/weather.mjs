@@ -30,6 +30,7 @@ export function createOpenMeteo({fetchImpl = globalThis.fetch} = {}) {
     const url = new URL(`https://${host}${path}`);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
     const res = await fetchImpl(url, {headers:{Accept:'application/json'}, redirect:'error', signal:AbortSignal.timeout(15000)});
+    if (res.status === 429) throw Error('Open-Meteo 今天的免費查詢額度已用完，明天再試。');
     if (!res.ok) throw Error(`天氣服務回應 ${res.status}，稍後再試。`);
     return res.json();
   }
@@ -41,6 +42,10 @@ export function createOpenMeteo({fetchImpl = globalThis.fetch} = {}) {
         get('air-quality-api.open-meteo.com', '/v1/air-quality', {...common, hourly:'us_aqi,pm2_5'}).catch(() => null),
       ]);
       return {weather, air};
+    },
+    // Past weather for one day (ERA5-based archive, a few days behind real time).
+    async archive({latitude, longitude}, date, timezone) {
+      return get('archive-api.open-meteo.com', '/v1/archive', {latitude, longitude, timezone, start_date:date, end_date:date, hourly:'temperature_2m,relative_humidity_2m'});
     },
   };
 }

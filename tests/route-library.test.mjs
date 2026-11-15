@@ -25,9 +25,10 @@ test('a library entry keeps a compact 100 m profile and rounded endpoints', () =
 
 test('pending activities: intervals runs only, newest first, not yet in the library or skipped', () => {
   const s = {activities:[act('a', '2026-11-01', 5), act('b', '2026-11-03', 8), {...act('c', '2026-11-02', 5), sources:[{source:'intervals'}, {source:'strava'}]}, {...act('d', '2026-11-04', 5), sport:'cycling'}, act('e', '2026-11-05', 0.5)],
-    routeLibrary:[{activityId:'a', date:'2026-11-01'}], routeLibrarySkipped:['x']};
+    routeLibrary:[{activityId:'a', date:'2026-11-01', v:2}, {activityId:'b', date:'2026-11-03'}], routeLibrarySkipped:['x']};
+  // b is an old-version entry and is read again.
   assert.deepEqual(pendingActivities(s).map(a => a.id), ['b']);
-  addEntries(s, [{activityId:'b', date:'2026-11-03'}], ['c']);
+  addEntries(s, [{activityId:'b', date:'2026-11-03', v:2}], ['c']);
   assert.deepEqual(s.routeLibrary.map(e => e.activityId), ['b', 'a']);
   assert.deepEqual(s.routeLibrarySkipped, ['x', 'c']);
 });
@@ -70,4 +71,12 @@ test('heat slows the flat pace for routes and is reported', () => {
   const r = recommendRoutes(s, {type:'Zone2', minutes:38}, 3, {factor:1.033, wbgt:24.5, slowdownPercent:3.3});
   assert.deepEqual([r.basePace, r.flatPace, r.heat.slowdownPercent], [368, 380, 3.3]);
   assert.equal(recommendRoutes(s, {type:'Zone2', minutes:38}, 3, {factor:1, wbgt:12}).heat, null);
+});
+
+test('heart-rate steadiness after the warm-up', async () => {
+  const {heartRateSteadiness} = await import('../src/route-library.mjs');
+  const time = Array.from({length:1200}, (_, i) => i);
+  assert.equal(heartRateSteadiness([{type:'time', data:time}, {type:'heartrate', data:time.map(t => t < 300 ? 100 : 150 + (t % 2 ? 3 : -3))}]).steady, true);
+  assert.equal(heartRateSteadiness([{type:'time', data:time}, {type:'heartrate', data:time.map(t => t % 120 < 60 ? 120 : 175)}]).steady, false);
+  assert.equal(heartRateSteadiness([{type:'distance', data:[0]}]), null);
 });

@@ -4,6 +4,7 @@ import {budgetFromState} from './daily-budget.mjs';
 import {substitutes} from './cross-training.mjs';
 import {recommendRoutes, pendingActivities} from './route-library.mjs';
 import {DEFAULT_SETTINGS, departureHour, conditionsAt, environmentGuide} from './weather.mjs';
+import {calibrationSamples, personalFactor} from './calibration.mjs';
 
 function localNow(timezone, now) {
   try {
@@ -30,7 +31,7 @@ export function prescriptionView(state, today = state.context.date, now = new Da
   if (kettlebell) return {date:today, kettlebell:true, budget:null, substitutes:[], environment:environmentView(state, today, now)};
   const budget = budgetFromState(state, today);
   const environment = environmentView(state, today, now);
-  return {date:today, kettlebell:false, budget, substitutes:substitutes(budget.session, state.athlete ?? {}), routes:{...recommendRoutes(state, budget.session, 3, environment.guide?.heat ?? null), pending:pendingActivities(state, 1000).length}, environment};
+  return {date:today, kettlebell:false, budget, substitutes:substitutes(budget.session, state.athlete ?? {}), routes:{...recommendRoutes(state, budget.session, 3, environment.guide?.heat ?? null, personalFactor(calibrationSamples(state))), pending:pendingActivities(state, 1000).length}, environment};
 }
 
 // Compact form for the coach's LLM input: numbers and reasons only.
