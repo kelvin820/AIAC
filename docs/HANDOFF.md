@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第五則）
+- **intervals.icu 實測成功**：金鑰存在雲端環境的網路密鑰（Basic，使用者名稱 API_KEY），運動員 ID 用 `0`（代表金鑰本人）可用。近一年 61 筆活動、37 筆跑步，跑步都有 `distance`、`altitude`、`fixed_altitude`（intervals.icu 依地形修正的高度）、`latlng` 等串流。有 8 筆來源為 Strava 的活動 `type` 為空（intervals.icu API 不提供 Strava 匯入的內容），之後同步要略過。
+- **做了什麼**：新增 `src/route-profile.mjs`：串流 → 高度剖面，優先 `fixed_altitude`，不保留座標。用一筆真實 5.5 km 路線跑 `routeEffort`：手錶高度平滑後爬升 9 m、修正高度 46 m（intervals.icu 摘要 37 m），平均海拔約 10–13 m，平路 6:00 時每公里等強配速 5:58–6:06。真實資料只在暫存目錄，未提交。
+- **刻意不做**：不改 `src/intervals.mjs`。PR #10 已在用戶端加 `streams()`，合併後再讓它多抓 `distance`、`fixed_altitude`（`STREAM_TYPES`）。
+- **測試**：node --test 全數通過（新增 `tests/route-profile.test.mjs` 3 項）。
+
 ### 2026-11-15 · Claude Code · claude/eloquent-meitner-mz160y（第四則）
 - **做了什麼**：新增 `src/grade-effort.mjs`（純模組）：路線高度剖面 → 平滑（10 m 取樣、±50 m 平均）→ 每 100 m 坡度 → Minetti（2002）等強配速倍數（下坡最多快 10%）→ 每公里配速、預測時間、爬升／下降、平均海拔、等效平路距離、`howCalculated`。規則 `R1-v1`，見 `docs/ALGORITHMS.md` R1。
 - **intervals.icu 金鑰**：使用者已透過雲端環境的網路密鑰表單存了金鑰（Basic，使用者名稱 API_KEY），但以運動員 ID `0` 呼叫仍回 401；待使用者提供運動員 ID 再測。雲端環境目前擋 `api.open-meteo.com`（403），需要時再申請放行。
