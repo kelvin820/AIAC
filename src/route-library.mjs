@@ -88,12 +88,13 @@ export function flatPace(sessionType, athlete) {
 }
 
 // Up to `count` routes whose equal-effort time is closest to the session's minutes.
-export function recommendRoutes(state, session, count = 3) {
+export function recommendRoutes(state, session, count = 3, heat = null) {
   if (!session || session.type === 'Rest' || !(session.minutes > 0)) return {status:'rest', routes:[]};
   const existing = new Set((state.activities ?? []).map(a => a.id));
   const entries = (state.routeLibrary ?? []).filter(e => existing.has(e.activityId));
   if (!entries.length) return {status:'empty', routes:[]};
-  const pace = flatPace(QUALITY.has(session.type) ? 'Zone2' : session.type, state.athlete);
+  const basePace = flatPace(QUALITY.has(session.type) ? 'Zone2' : session.type, state.athlete);
+  const pace = basePace && heat?.factor > 1 ? Math.round(basePace * heat.factor) : basePace;
   if (!pace) return {status:'needs-pace', routes:[], libraryCount:entries.length};
   const target = session.minutes * 60;
   const scored = groupRoutes(entries).map(({entry, times}) => {
@@ -103,7 +104,7 @@ export function recommendRoutes(state, session, count = 3) {
   }).filter(r => r.fit <= MAX_FIT_ERROR);
   scored.sort((a, b) => QUALITY.has(session.type) ? a.hilliness - b.hilliness || a.fit - b.fit : a.fit - b.fit);
   return {
-    status:scored.length ? 'ok' : 'no-match', flatPace:pace, targetSeconds:target, libraryCount:entries.length,
+    status:scored.length ? 'ok' : 'no-match', flatPace:pace, basePace, heat:heat && heat.factor > 1 ? {wbgt:heat.wbgt, slowdownPercent:heat.slowdownPercent} : null, targetSeconds:target, libraryCount:entries.length,
     note:QUALITY.has(session.type) ? '品質課優先推薦最平坦的路線；路線時間以輕鬆配速估算，主課段照課表配速。' : null,
     routes:scored.slice(0, count).map(({entry, times, effort}) => ({
       activityId:entry.activityId, name:entry.name, lastRun:entry.date, timesRun:times,

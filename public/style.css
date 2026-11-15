@@ -833,3 +833,7 @@ nav button[data-tab=activity-log]{--ic:#57D6C7}
 .env-settings{margin-top:10px}
 .env-settings summary{cursor:pointer;font-size:13px;color:var(--muted)}
 .env-settings form{margin-top:10px}
+.env-grid span[data-level="heat-low"]{color:var(--brand)}
+.env-grid span[data-level="heat-moderate"],.env-grid span[data-level="heat-high"]{color:var(--accent)}
+.env-grid span[data-level="heat-extreme"]{color:var(--danger)}
+.environment details summary{cursor:pointer;font-size:13px;color:var(--muted)}

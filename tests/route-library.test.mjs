@@ -63,3 +63,11 @@ test('routes are ranked by how close the equal-effort time is to the session', (
   assert.equal(recommendRoutes(s, {type:'Rest', minutes:0}).status, 'rest');
   assert.equal(recommendRoutes(s, {type:'Zone2', minutes:120}).status, 'no-match');
 });
+
+test('heat slows the flat pace for routes and is reported', () => {
+  const s = {athlete:{thresholdPaceSecPerKm:300}, activities:[act('a', '2026-11-01', 6)], routeLibrary:[]};
+  addEntries(s, [routeEntry(s.activities[0], rows(6))]);
+  const r = recommendRoutes(s, {type:'Zone2', minutes:38}, 3, {factor:1.033, wbgt:24.5, slowdownPercent:3.3});
+  assert.deepEqual([r.basePace, r.flatPace, r.heat.slowdownPercent], [368, 380, 3.3]);
+  assert.equal(recommendRoutes(s, {type:'Zone2', minutes:38}, 3, {factor:1, wbgt:12}).heat, null);
+});

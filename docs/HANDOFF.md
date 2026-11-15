@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第五則）
+- **使用者決定**：R12 方案 A 核准。
+- **做了什麼**：`weather.mjs` 新增 `wbgt`（澳洲氣象局簡化式）、`heatAdjustment`（WBGT > 15°C 每度慢 0.35%，ACSM 風險分級，附計算說明）；環境指引加入熱風險提示（高／極高）；`recommendRoutes` 可帶熱修正，回傳 `basePace`、`flatPace`（已放慢）與 `heat`；首頁環境格新增 WBGT 與放慢比例、「熱與濕度怎麼算的」；路線卡標示含熱修正。教練 LLM 輸入加入 WBGT、風險與放慢比例。
+- **測試**：node --test 138 項通過（新增熱修正 2 項）；build-demo 成功；Playwright 以真實天氣驗證（24.1°C／68% → WBGT 25.6、慢 3.7%、風險高），無 console 錯誤。
+- **下一步**：R17 跑後校正（需先提方法給使用者核准）；使用者需在個人資料填臨界配速。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第四則）
 - **使用者決定**：風與空氣品質門檻核准（`docs/ALGORITHMS.md` R11／R14）；雲端預設環境放行 `api.open-meteo.com`、`air-quality-api.open-meteo.com`（使用者同意）。
 - **做了什麼**：`src/weather.mjs`（設定驗證、Open-Meteo 用戶端、出發時段、取值、環境指引）；`POST /api/weather`（可帶 `settings` 修改出發時間／地點／經緯度，存 `state.prescriptionSettings` 與 `state.weather`）；`prescription.environment`（只在同一地點、有該時段資料時顯示）；教練 LLM 輸入加入環境摘要；首頁「出發時的環境」區塊、更新按鈕與設定表單。只有按鈕才連線，開頁不連線。試用版不連天氣。

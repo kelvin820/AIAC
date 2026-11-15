@@ -68,6 +68,24 @@ export function conditionsAt({weather, air}, hour) {
   };
 }
 
+// R12 (approved 2026-11-15): WBGT estimate (Australian Bureau of Meteorology simplified formula, shade),
+// pace slows 0.35% per °C of WBGT above 15 °C (Mantzios et al. 2022), ACSM (2007) heat-illness risk bands.
+export const HEAT_START = 15;
+export const HEAT_PER_DEGREE = 0.0035;
+export function wbgt(temperature, humidity) {
+  if (temperature === null || humidity === null) return null;
+  const vapour = humidity / 100 * 6.105 * Math.exp(17.27 * temperature / (237.7 + temperature));
+  return Math.round((0.567 * temperature + 0.393 * vapour + 3.94) * 10) / 10;
+}
+export function heatAdjustment(c) {
+  const w = c ? wbgt(c.temperature, c.humidity) : null;
+  if (w === null) return null;
+  const factor = 1 + Math.max(0, w - HEAT_START) * HEAT_PER_DEGREE;
+  const risk = w >= 28 ? {level:'extreme', label:'極高'} : w >= 23 ? {level:'high', label:'高'} : w >= 18 ? {level:'moderate', label:'中'} : {level:'low', label:'低'};
+  return {wbgt:w, factor:Math.round(factor * 1000) / 1000, slowdownPercent:Math.round((factor - 1) * 1000) / 10, risk,
+    howCalculated:`WBGT 以澳洲氣象局簡化式由氣溫 ${c.temperature}°C、濕度 ${c.humidity}% 估算為 ${w}°C（陰影下，烈日會低估）；超過 ${HEAT_START}°C 每度配速放慢 ${HEAT_PER_DEGREE * 100}%（Mantzios 等人 2022），${factor > 1 ? `放慢 ${Math.round((factor - 1) * 1000) / 10}%` : '不需放慢'}。熱傷害風險依 ACSM（2007）分級：${risk.label}。心率上限不變，以心率為準。`};
+}
+
 export function environmentGuide(c) {
   if (!c) return null;
   const wind = c.wind === null ? {level:'unknown', label:'沒有風速資料'}
@@ -79,5 +97,8 @@ export function environmentGuide(c) {
   if (air.level === 'indoor') hints.push('空氣品質不佳，建議改室內（跑步機、腳踏車或滑步機）。');
   if (rainy) hints.push('出發時段可能下雨，要不要改室內由你決定。');
   if (wind.level === 'strong') hints.push('強風，注意安全，逆風段不要硬追配速。');
-  return {wind, air, rainy, hints, heatNote:'熱與濕度的配速修正尚在研究（R12），目前只顯示數值。'};
+  const heat = heatAdjustment(c);
+  if (heat?.risk.level === 'extreme') hints.push(`熱傷害風險極高（WBGT ${heat.wbgt}°C），建議改室內或換涼爽時段。`);
+  else if (heat?.risk.level === 'high') hints.push(`熱傷害風險高（WBGT ${heat.wbgt}°C），以心率為準、多補水。`);
+  return {wind, air, rainy, hints, heat};
 }

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateSettings, createOpenMeteo, departureHour, conditionsAt, environmentGuide, DEFAULT_SETTINGS} from '../src/weather.mjs';
+import {validateSettings, createOpenMeteo, departureHour, conditionsAt, environmentGuide, DEFAULT_SETTINGS, wbgt, heatAdjustment} from '../src/weather.mjs';
 
 const hours = ['2026-11-16T05:00', '2026-11-16T06:00'];
 const raw = {weather:{hourly:{time:hours, temperature_2m:[20.7, 21], relative_humidity_2m:[92, 90], dew_point_2m:[19.4, 19], wind_speed_10m:[1, 6], wind_gusts_10m:[2.5, 9], precipitation_probability:[37, 70], precipitation:[0, 1.2], weather_code:[2, 61]}},
@@ -25,9 +25,10 @@ test('conditions and guidance follow R11 and R14; missing data stays missing', (
   const calm = conditionsAt(raw, hours[0]);
   assert.deepEqual([calm.temperature, calm.dewPoint, calm.wind, calm.aqi], [20.7, 19.4, 1, 66]);
   const g = environmentGuide(calm);
-  assert.deepEqual([g.wind.level, g.air.level, g.rainy, g.hints], ['calm', 'outdoor', false, []]);
+  assert.deepEqual([g.wind.level, g.air.level, g.rainy, g.heat.risk.level], ['calm', 'outdoor', false, 'high']);
+  assert.deepEqual(environmentGuide({...calm, temperature:12, humidity:60}).hints, []);
   const bad = environmentGuide(conditionsAt(raw, hours[1]));
-  assert.deepEqual([bad.wind.level, bad.air.level, bad.rainy, bad.hints.length], ['breezy', 'indoor', true, 2]);
+  assert.deepEqual([bad.wind.level, bad.air.level, bad.rainy, bad.hints.length], ['breezy', 'indoor', true, 3]);
   assert.equal(environmentGuide({...calm, wind:11}).wind.level, 'strong');
   assert.equal(environmentGuide({...calm, aqi:120}).air.level, 'either');
   const noAir = environmentGuide(conditionsAt({weather:raw.weather, air:null}, hours[0]));
@@ -46,4 +47,17 @@ test('client calls both Open-Meteo hosts and tolerates a missing air-quality ans
   assert.match(urls[1], /air-quality-api\.open-meteo\.com/);
   const down = createOpenMeteo({fetchImpl:async () => ({ok:false, status:500})});
   await assert.rejects(down.forecast(DEFAULT_SETTINGS, 'Asia/Taipei'), /500/);
+});
+
+test('R12: WBGT estimate, 0.35% per degree above 15, ACSM risk bands', () => {
+  assert.equal(wbgt(20.7, 92), 24.5);
+  assert.equal(wbgt(null, 50), null);
+  const h = heatAdjustment({temperature:20.7, humidity:92});
+  assert.deepEqual([h.wbgt, h.factor, h.slowdownPercent, h.risk.level], [24.5, 1.033, 3.3, 'high']);
+  assert.match(h.howCalculated, /Mantzios/);
+  const cool = heatAdjustment({temperature:10, humidity:60});
+  assert.deepEqual([cool.factor, cool.slowdownPercent, cool.risk.level], [1, 0, 'low']);
+  assert.equal(heatAdjustment({temperature:32, humidity:75}).risk.level, 'extreme');
+  assert.ok(environmentGuide({temperature:32, humidity:75, wind:1, aqi:50}).hints.some(t => t.includes('極高')));
+  assert.equal(heatAdjustment({temperature:null, humidity:80}), null);
 });

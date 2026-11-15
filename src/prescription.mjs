@@ -29,13 +29,14 @@ export function prescriptionView(state, today = state.context.date, now = new Da
   const kettlebell = state.kettlebell?.plans?.[today];
   if (kettlebell) return {date:today, kettlebell:true, budget:null, substitutes:[], environment:environmentView(state, today, now)};
   const budget = budgetFromState(state, today);
-  return {date:today, kettlebell:false, budget, substitutes:substitutes(budget.session, state.athlete ?? {}), routes:{...recommendRoutes(state, budget.session), pending:pendingActivities(state, 1000).length}, environment:environmentView(state, today, now)};
+  const environment = environmentView(state, today, now);
+  return {date:today, kettlebell:false, budget, substitutes:substitutes(budget.session, state.athlete ?? {}), routes:{...recommendRoutes(state, budget.session, 3, environment.guide?.heat ?? null), pending:pendingActivities(state, 1000).length}, environment};
 }
 
 // Compact form for the coach's LLM input: numbers and reasons only.
 export function prescriptionForCoach(view) {
   if (!view?.budget) return view?.kettlebell ? {kettlebell:true} : null;
-  const env = view.environment?.status === 'ok' ? {at:view.environment.conditions.hour, place:view.environment.settings.place, ...view.environment.conditions, wind:view.environment.guide.wind.label, air:view.environment.guide.air.label, windSpeed:view.environment.conditions.wind} : null;
+  const env = view.environment?.status === 'ok' ? {at:view.environment.conditions.hour, place:view.environment.settings.place, ...view.environment.conditions, wind:view.environment.guide.wind.label, air:view.environment.guide.air.label, windSpeed:view.environment.conditions.wind, wbgt:view.environment.guide.heat?.wbgt ?? null, heatRisk:view.environment.guide.heat?.risk.label ?? null, heatSlowdownPercent:view.environment.guide.heat?.slowdownPercent ?? null} : null;
   const {decision, planned, session, reasons} = view.budget;
   return {decision, planned:{type:planned.type, minutes:planned.minutes}, session:{type:session.type, minutes:session.minutes},
     reasons:reasons.map(r => r.text),
