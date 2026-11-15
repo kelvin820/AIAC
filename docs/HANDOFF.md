@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第三則）
+- **做了什麼**：路線推薦。`src/route-library.mjs`：`routeEntry`（intervals.icu 串流 → 每 100 m 高度剖面＋四捨五入到小數 4 位的起終點）、`pendingActivities`、`addEntries`（`state.routeLibrary` 最多 200 條、`state.routeLibrarySkipped`）、`groupRoutes`、`flatPace`、`recommendRoutes`（規則見 `docs/ALGORITHMS.md`「路線推薦規則」，待核准）。`POST /api/route-library` 每次最多讀 15 筆（先查來源，Strava 來源略過）。intervals.icu `streams()` 加抓 `distance`、`fixed_altitude`。`prescription.routes` 與首頁「推薦路線」卡（每公里配速、爬升、平均海拔、跑過次數、計算說明；建立／更新路線庫按鈕）；教練 LLM 輸入加入精簡路線。路線庫不在備份內（可隨時重建），已刪除活動的路線不會推薦。
+- **真實資料驗證**：以使用者 intervals.icu（雲端網路密鑰；本機 Node 需 `NODE_USE_ENV_PROXY=1` 走代理）同步一年、建立 34 條路線庫（全部有修正高度，平均海拔多為 5–18 m），臨界配速暫填 5:30 做測試，輕鬆有氧 40 分推薦 3 條約 6 km 路線，每公里 6:20–7:12。測試資料已刪除。
+- **測試**：node --test 131 項通過（新增 `tests/route-library.test.mjs` 5 項、`application.test.mjs` 路線庫端點 1 項）；build-demo 成功。
+- **注意**：使用者個人資料尚未填臨界配速，沒有它路線會顯示「請先填臨界配速」。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第二則）
 - **做了什麼**：首頁新增「今日處方」卡。`src/prescription.mjs` 組合強度預算（`daily-budget.mjs`，改用含壺鈴的 `loadActivities`）與替代運動（`cross-training.mjs`）；`view()`（本機、雲端、試用版共用的 `application.mjs` 與 `demo-service.mjs`）新增 `prescription`；教練 LLM 輸入新增精簡的 `todayPrescription`。個人資料新增「騎車閾值心率」`bikeLthr`（80–220）。前端在首頁準備度下方顯示處方、理由與「今天不想跑？」四種替代（前端切換，不呼叫 API／LLM）。壺鈴日只顯示提示。
 - **狀態**：已推分支，未開 PR。

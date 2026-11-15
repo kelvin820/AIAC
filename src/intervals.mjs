@@ -40,7 +40,7 @@ export function createIntervals({apiKey, athleteId, fetchImpl = globalThis.fetch
     configured,
     activities:(oldest, newest) => get(`/athlete/${athlete()}/activities`, {oldest, newest}),
     wellness:(oldest, newest) => get(`/athlete/${athlete()}/wellness`, {oldest, newest}),
-    streams:id => get(`/activity/${encodeURIComponent(id)}/streams.json`, {types:'time,latlng,heartrate,velocity_smooth,altitude,cadence,watts'}),
+    streams:id => get(`/activity/${encodeURIComponent(id)}/streams.json`, {types:'time,latlng,heartrate,velocity_smooth,altitude,cadence,watts,distance,fixed_altitude'}),
     intervals:id => get(`/activity/${encodeURIComponent(id)}/intervals`),
     activitySource:async id => (await get(`/activity/${encodeURIComponent(id)}`,{fields:'source'})).source,
   };

@@ -20,6 +20,7 @@ import {activePlanStatus,trainingPlanAction} from './training-plan.mjs';
 import {workoutsView} from './workout-structure.mjs';
 import {wellnessAction,wellnessView} from './wellness.mjs';
 import {prescriptionView} from './prescription.mjs';
+import {addEntries,pendingActivities,routeEntry} from './route-library.mjs';
 import {updateKettlebell} from '../public/kettlebell-core.js';
 
 // store.get/save may perform I/O. The vault and FIT storage are supplied by the entry point.
@@ -130,6 +131,20 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
      if(!provider||String(provider).toUpperCase().includes('STRAVA'))throw Error('此活動的來源無法透過 intervals.icu 讀取路線與分段，請匯入原始 FIT。');
      const detail=await readIntervalsDetails(intervals,source.sourceId);
      return send(res,200,detail);
+    }else if(req.url==='/api/route-library'){
+     if(!intervals.configured())throw Error('請先設定 intervals.icu，才能從你跑過的路線建立路線庫。');
+     const entries=[],skipped=[];
+     for(const activity of pendingActivities(s,15)){
+      const sourceId=activity.sources.find(item=>item.source==='intervals').sourceId;
+      try{
+       const provider=await intervals.activitySource(sourceId);
+       if(!provider||String(provider).toUpperCase().includes('STRAVA')){skipped.push(activity.id);continue;}
+       const entry=routeEntry(activity,await intervals.streams(sourceId));
+       if(entry)entries.push(entry);else skipped.push(activity.id);
+      }catch(error){if(error?.status===404)skipped.push(activity.id);else if(!entries.length)throw error;else break;}
+     }
+     addEntries(s,entries,skipped);await store.save(s);
+     return send(res,200,{...view(s),routeLibrary:{added:entries.length,skipped:skipped.length,remaining:pendingActivities(s,1000).length}});
     }else if(req.url==='/api/fit-activity-data'){
      const {bytes,index}=await readActivityFit(s.activities.find(a=>a.id===b.id));
      return send(res,200,fitActivityData(bytes,index));

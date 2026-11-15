@@ -755,9 +755,21 @@ function renderPrescription(){
  box.innerHTML=`<div class="card-title"><h2>今日處方</h2><span class="decision" data-decision="${b.decision}">${decisionLabels[b.decision]}</span></div>
  <div class="prescription-main"><p class="prescription-session">${session}</p>${changed?`<p class="small">原計畫：${esc(b.planned.label)} ${b.planned.minutes} 分鐘</p>`:''}</div>
  <ul class="prescription-reasons">${reasons}</ul>
+ ${renderRoutes(p.routes)}
  ${p.substitutes.length?`<div class="substitutes"><p class="check-in-question">今天不想跑？換成：</p><div class="chips">${options}</div>${detail}</div>`:''}
  <p class="small">依恢復、負荷與計畫計算，只降不升，不呼叫 AI。規則版本 ${esc(b.rule)}。</p>`;
 }
+function renderRoutes(r){
+ if(!r||r.status==='rest')return '';
+ const build=r.pending>0&&state.connections?.intervals?.configured&&!state.demo?`<button type="button" class="secondary" data-route-library>${r.status==='empty'?'從 intervals.icu 建立路線庫':'更新路線庫'}（還有 ${r.pending} 筆跑步）</button>`:'';
+ let body;
+ if(r.status==='empty')body=`<p class="muted">還沒有路線庫。${state.demo?'試用版沒有 intervals.icu 資料。':build?'會讀取你跑過的路線高度（不呼叫 AI）。':'先在「資料」分頁連接 intervals.icu 並同步跑步活動。'}</p>`;
+ else if(r.status==='needs-pace')body='<p class="muted">要算每公里等強配速，請先在「我」分頁填臨界配速。</p>';
+ else if(r.status==='no-match')body=`<p class="muted">路線庫 ${r.libraryCount} 條，沒有接近今天 ${Math.round(r.targetSeconds/60)} 分鐘的路線。</p>`;
+ else body=(r.note?`<p class="small">${esc(r.note)}</p>`:'')+`<ol class="route-list">${r.routes.map(x=>`<li><div class="route-head"><strong>${esc(x.name)}</strong><span>${(x.distanceMeters/1000).toFixed(1)} km · 爬升 ${x.gainMeters} m · 平均海拔 ${x.averageAltitude} m · 約 ${Math.round(x.predictedSeconds/60)} 分</span></div><div class="splits">${x.splits.map(s=>`<span><em>${s.meters<1000?`最後 ${s.meters} m`:`${s.km} km`}</em>${formatPace(s.pace)}</span>`).join('')}</div><p class="small">跑過 ${x.timesRun} 次，最近 ${esc(x.lastRun)}。平路基準 ${formatPace(r.flatPace)} /km。</p></li>`).join('')}</ol><details><summary>怎麼算的</summary><p class="small">${esc(r.routes[0].howCalculated)}</p></details>`;
+ return `<div class="routes"><p class="check-in-question">推薦路線（你跑過的）</p>${body}${build}</div>`;
+}
+document.addEventListener('click',e=>{if(!e.target.closest('[data-route-library]'))return;action(async()=>{const r=await api('route-library',{});state=r;render();notice(`路線庫新增 ${r.routeLibrary.added} 條${r.routeLibrary.skipped?`，略過 ${r.routeLibrary.skipped} 筆無法讀取的活動`:''}${r.routeLibrary.remaining?`，還有 ${r.routeLibrary.remaining} 筆可再更新`:''}。`);});});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-substitute]');if(!b)return;substituteMode=substituteMode===b.dataset.substitute?null:b.dataset.substitute;renderPrescription();});
 
 function render(){
