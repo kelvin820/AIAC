@@ -6,6 +6,15 @@
 
 單人雲端試用的原始實作在 `245bc33`，接手請拉 `codex/claude-handoff`。Vercel 提供靜態介面與 API，Neon Postgres 保存課表、活動與健康資料，私有 Vercel Blob 保存原始 FIT。第一次使用時建立單一擁有者的 `aiac_state`。先用示範資料驗收，再由擁有者決定何時匯入本機備份或開啟 intervals.icu 同步。
 
+## 部署狀態（2026-11-15，Claude Code）
+
+- Vercel 專案 `aiac`（CKM 團隊），連 GitHub `kelvin820/AIAC` 的 `main`，推送到 `main` 會自動部署正式版。正式網址 `https://aiac-teal.vercel.app`。
+- **框架必須是 Other（`framework: null`）**：Vercel 曾自動判成 Node 伺服器，把前端 `app.js` 當伺服器執行而全部 500。已在專案設定改為 Other；若重建專案要記得改。
+- Node 24、安裝 `pnpm install --frozen-lockfile`。
+- 環境變數：Neon 已連（`DATABASE_URL` 等）、私有 Blob `aiac-fit-private`（東京）已連、`AIAC_PREVIEW_PASSWORD` 與 `INTERVALS_API_KEY`（使用者自行設定）、`INTERVALS_ATHLETE_ID=0`、`CRON_SECRET`。未設 LLM 金鑰，教練為 Mock。
+- 團隊預設的 Vercel Authentication 保護所有 `.vercel.app` 網址：先登入 Vercel，再以 `aiac`＋試用密碼登入 AIAC。
+- 已驗證：建置成功、首頁 200、未登入的資料 API 回 401。待使用者實際登入走同步、路線庫、天氣與校正。
+
 ## 設定
 
 | 環境變數 | 用途 |
