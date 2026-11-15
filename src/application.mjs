@@ -21,6 +21,7 @@ import {workoutsView} from './workout-structure.mjs';
 import {wellnessAction,wellnessView} from './wellness.mjs';
 import {prescriptionView} from './prescription.mjs';
 import {addEntries,pendingActivities,routeEntry} from './route-library.mjs';
+import {createOpenMeteo,validateSettings} from './weather.mjs';
 import {updateKettlebell} from '../public/kettlebell-core.js';
 
 // store.get/save may perform I/O. The vault and FIT storage are supplied by the entry point.
@@ -29,6 +30,7 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
  const trustedOrigins = new Set(allowedOrigins.map(value => new URL(value).origin));
  const garmin = createGarmin(env.GARMIN_PERSONAL_API_KEY);
  const intervals = createIntervals({apiKey:env.INTERVALS_API_KEY, athleteId:env.INTERVALS_ATHLETE_ID});
+ const openMeteo = createOpenMeteo();
  const mcp = createMcp(vault, new URL('/auth/mcp/callback', base).href);
  const strava = createStrava(vault, new URL('/auth/strava/callback', base).href, env);
  let nextIntervalsSync = 0, nextGarminSync = 0, busy = false;
@@ -131,6 +133,12 @@ export function createApplication({origin, allowedOrigins = [origin], store, vau
      if(!provider||String(provider).toUpperCase().includes('STRAVA'))throw Error('此活動的來源無法透過 intervals.icu 讀取路線與分段，請匯入原始 FIT。');
      const detail=await readIntervalsDetails(intervals,source.sourceId);
      return send(res,200,detail);
+    }else if(req.url==='/api/weather'){
+     const settings=validateSettings({...(s.prescriptionSettings??{}),...(b.settings??{})});
+     s.prescriptionSettings=settings;
+     const raw=await openMeteo.forecast(settings,s.context.timezone||'Asia/Taipei');
+     s.weather={fetchedAt:new Date().toISOString(),latitude:settings.latitude,longitude:settings.longitude,raw};
+     await store.save(s);return send(res,200,view(s));
     }else if(req.url==='/api/route-library'){
      if(!intervals.configured())throw Error('請先設定 intervals.icu，才能從你跑過的路線建立路線庫。');
      const entries=[],skipped=[];

@@ -745,7 +745,7 @@ function renderPrescription(){
  const p=state.prescription,box=$('#prescription');
  if(!p){box.hidden=true;return;}
  box.hidden=false;
- if(p.kettlebell){box.innerHTML='<div class="card-title"><h2>今日處方</h2><span>壺鈴日</span></div><p class="muted">今天安排了全身壺鈴間歇，從今日課表開始計時。</p>';return;}
+ if(p.kettlebell){box.innerHTML='<div class="card-title"><h2>今日處方</h2><span>壺鈴日</span></div><p class="muted">今天安排了全身壺鈴間歇，從今日課表開始計時。</p>'+renderEnvironment(p.environment);return;}
  const b=p.budget,changed=b.planned.type!==b.session.type||b.planned.minutes!==b.session.minutes;
  const session=b.session.type==='Rest'?'休息':`${esc(b.session.label)} <small>${b.session.minutes} 分鐘</small>`;
  const reasons=b.reasons.map(r=>`<li${r.applied?' data-applied':''}>${esc(r.text)}</li>`).join('');
@@ -755,10 +755,24 @@ function renderPrescription(){
  box.innerHTML=`<div class="card-title"><h2>今日處方</h2><span class="decision" data-decision="${b.decision}">${decisionLabels[b.decision]}</span></div>
  <div class="prescription-main"><p class="prescription-session">${session}</p>${changed?`<p class="small">原計畫：${esc(b.planned.label)} ${b.planned.minutes} 分鐘</p>`:''}</div>
  <ul class="prescription-reasons">${reasons}</ul>
+ ${renderEnvironment(p.environment)}
  ${renderRoutes(p.routes)}
  ${p.substitutes.length?`<div class="substitutes"><p class="check-in-question">今天不想跑？換成：</p><div class="chips">${options}</div>${detail}</div>`:''}
  <p class="small">依恢復、負荷與計畫計算，只降不升，不呼叫 AI。規則版本 ${esc(b.rule)}。</p>`;
 }
+function renderEnvironment(e){
+ if(!e)return '';
+ const st=e.settings,c=e.conditions,g=e.guide;
+ const v=(x,u)=>x===null||x===undefined?'—':`${x}${u}`;
+ const form=`<details class="env-settings"><summary>出發時間與地點：${esc(st.departure)} · ${esc(st.place)}</summary><form id="env-form" class="fields"><label>出發時間<input name="departure" type="time" value="${esc(st.departure)}" required></label><label>地點名稱<input name="place" maxlength="40" value="${esc(st.place)}" required></label><label>緯度<input name="latitude" type="number" step="0.0001" min="-90" max="90" value="${st.latitude}" required></label><label>經度<input name="longitude" type="number" step="0.0001" min="-180" max="180" value="${st.longitude}" required></label><button class="secondary">儲存並更新天氣</button></form></details>`;
+ const refresh=state.demo?'<p class="small">試用版不連線天氣服務。</p>':`<button type="button" class="secondary" data-weather>${e.status==='none'?'取得出發時段天氣':'更新天氣'}</button>`;
+ let body;
+ if(e.status!=='ok')body=`<p class="muted">${e.status==='stale'?'天氣預報已過期，請更新。':'還沒有出發時段的天氣預報。'}</p>`;
+ else body=`<div class="env-grid"><span><em>${esc(c.hour.slice(11))} 氣溫</em>${v(c.temperature,'°C')}</span><span><em>濕度／露點</em>${v(c.humidity,'%')} · ${v(c.dewPoint,'°C')}</span><span><em>降雨機率</em>${v(c.precipitationProbability,'%')}</span><span data-level="${g.wind.level}"><em>風 ${v(c.wind,' m/s')}</em>${esc(g.wind.label)}</span><span data-level="${g.air.level}"><em>空氣品質 AQI ${v(c.aqi,'')}</em>${esc(g.air.label)}</span></div>${g.hints.map(h=>`<p class="env-hint">${esc(h)}</p>`).join('')}<p class="small">${esc(g.heatNote)} 資料：Open-Meteo，${esc(new Date(e.fetchedAt).toLocaleString('zh-TW',{timeZone:state.context.timezone,hour12:false}))} 取得。</p>`;
+ return `<div class="environment"><p class="check-in-question">出發時的環境</p>${body}<div class="actions">${refresh}</div>${form}</div>`;
+}
+document.addEventListener('click',e=>{if(!e.target.closest('[data-weather]'))return;action(async()=>{state=await api('weather',{});render();notice('已更新出發時段的天氣與空氣品質。');});});
+document.addEventListener('submit',e=>{if(e.target.id!=='env-form')return;e.preventDefault();const f=Object.fromEntries(new FormData(e.target));action(async()=>{state=await api('weather',{settings:f});render();notice('已儲存出發時間與地點，並更新天氣。');});});
 function renderRoutes(r){
  if(!r||r.status==='rest')return '';
  const build=r.pending>0&&state.connections?.intervals?.configured&&!state.demo?`<button type="button" class="secondary" data-route-library>${r.status==='empty'?'從 intervals.icu 建立路線庫':'更新路線庫'}（還有 ${r.pending} 筆跑步）</button>`:'';

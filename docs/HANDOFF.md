@@ -18,6 +18,12 @@ Codex 與 Claude Code 輪流開發 AIAC，彼此看不到對方的對話，靠�
 
 ---
 
+### 2026-11-15 · Claude Code · claude/aiac-next（第四則）
+- **使用者決定**：風與空氣品質門檻核准（`docs/ALGORITHMS.md` R11／R14）；雲端預設環境放行 `api.open-meteo.com`、`air-quality-api.open-meteo.com`（使用者同意）。
+- **做了什麼**：`src/weather.mjs`（設定驗證、Open-Meteo 用戶端、出發時段、取值、環境指引）；`POST /api/weather`（可帶 `settings` 修改出發時間／地點／經緯度，存 `state.prescriptionSettings` 與 `state.weather`）；`prescription.environment`（只在同一地點、有該時段資料時顯示）；教練 LLM 輸入加入環境摘要；首頁「出發時的環境」區塊、更新按鈕與設定表單。只有按鈕才連線，開頁不連線。試用版不連天氣。
+- **測試**：node --test 136 項通過（新增 `tests/weather.test.mjs` 4 項、處方環境 1 項）；build-demo 成功；Playwright 以真實 Open-Meteo 在桌機與手機驗證、改出發時間 18:00 後重抓，無 console 錯誤。有一次空氣品質請求失敗，畫面照實顯示「沒有空氣品質預報」。
+- **下一步**：R12 熱與濕度配速修正的研究與核准；R17 跑後校正；天氣與路線方向、遮蔽無關（使用者決定風不逐段算）。
+
 ### 2026-11-15 · Claude Code · claude/aiac-next（第三則）
 - **做了什麼**：路線推薦。`src/route-library.mjs`：`routeEntry`（intervals.icu 串流 → 每 100 m 高度剖面＋四捨五入到小數 4 位的起終點）、`pendingActivities`、`addEntries`（`state.routeLibrary` 最多 200 條、`state.routeLibrarySkipped`）、`groupRoutes`、`flatPace`、`recommendRoutes`（規則見 `docs/ALGORITHMS.md`「路線推薦規則」，待核准）。`POST /api/route-library` 每次最多讀 15 筆（先查來源，Strava 來源略過）。intervals.icu `streams()` 加抓 `distance`、`fixed_altitude`。`prescription.routes` 與首頁「推薦路線」卡（每公里配速、爬升、平均海拔、跑過次數、計算說明；建立／更新路線庫按鈕）；教練 LLM 輸入加入精簡路線。路線庫不在備份內（可隨時重建），已刪除活動的路線不會推薦。
 - **真實資料驗證**：以使用者 intervals.icu（雲端網路密鑰；本機 Node 需 `NODE_USE_ENV_PROXY=1` 走代理）同步一年、建立 34 條路線庫（全部有修正高度，平均海拔多為 5–18 m），臨界配速暫填 5:30 做測試，輕鬆有氧 40 分推薦 3 條約 6 km 路線，每公里 6:20–7:12。測試資料已刪除。
